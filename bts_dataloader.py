@@ -16,6 +16,7 @@
 
 from __future__ import absolute_import, division, print_function
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow.python.ops import array_ops
 
 
@@ -57,7 +58,7 @@ class BtsDataloader(object):
             self.loader = self.loader.prefetch(1)
 
     def parse_function_test(self, line):
-        split_line = tf.string_split([line]).values
+        split_line = tf.strings.split([line]).values
         image_path = tf.strings.join([self.data_path, split_line[0]])
 
         if self.params.dataset in ['nyu', 'matterport']:
@@ -67,7 +68,7 @@ class BtsDataloader(object):
 
         width_o = tf.cast(array_ops.shape(image)[1], dtype='float32')
         image = tf.image.convert_image_dtype(image, tf.float32)
-        focal = tf.strings.to_number(split_line[2])
+        #focal = tf.strings.to_number(split_line[2]) # paper V2 update does not require focal
 
         if self.do_kb_crop is True:
             height = tf.shape(input=image)[0]
@@ -78,7 +79,7 @@ class BtsDataloader(object):
 
         return image
 
-    def test_preprocess(self, image, focal):
+    def test_preprocess(self, image):
         # To use with model pretrained on ImageNet
         # Switch RGB to BGR order and scale to range [0,255]
         image = image[:, :, ::-1] * 255.0
@@ -90,7 +91,7 @@ class BtsDataloader(object):
         return image
 
     def parse_function_train(self, line):
-        split_line = tf.string_split([line]).values
+        split_line = tf.strings.split([line]).values
         image_path = tf.strings.join([self.data_path, split_line[0]])
         depth_gt_path = tf.strings.join([self.gt_path[:-1], split_line[1]])
 
@@ -107,7 +108,7 @@ class BtsDataloader(object):
             depth_gt = tf.cast(depth_gt, tf.float32) / 256.0
 
         image = tf.image.convert_image_dtype(image, tf.float32)
-        focal = tf.strings.to_number(split_line[2])
+        #focal = tf.strings.to_number(split_line[2]) # paper V2 update does not require focal
 
         # To avoid blank boundaries due to pixel registration
         if self.params.dataset == 'nyu':
@@ -125,15 +126,15 @@ class BtsDataloader(object):
 
         if self.do_rotate is True:
             random_angle = tf.random.uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
-            image = tf.contrib.image.rotate(image, random_angle, interpolation='BILINEAR')
-            depth_gt = tf.contrib.image.rotate(depth_gt, random_angle, interpolation='NEAREST')
+            image = tfa.image.rotate(image, random_angle, interpolation='BILINEAR')
+            depth_gt = tfa.image.rotate(depth_gt, random_angle, interpolation='NEAREST')
 
         print('Do random cropping from fixed size input')
         image, depth_gt = self.random_crop_fixed_size(image, depth_gt)
 
         return image, depth_gt
 
-    def train_preprocess(self, image, depth_gt, focal):
+    def train_preprocess(self, image, depth_gt):
         # Random flipping
         do_flip = tf.random.uniform([], 0, 1)
         image = tf.cond(do_flip > 0.5, lambda: tf.image.flip_left_right(image), lambda: image)

@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras import backend as K
-from tensorflow.keras import layers
+from tensorflow.keras import layers, regularizers
 
 class DenseNet(object):
 	def __init__(self, nb_layers, growth_rate=48, nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-4, is_training=False):
@@ -22,6 +22,7 @@ class DenseNet(object):
 		'''
 		self.nb_layers = nb_layers
 		self.growth_rate = growth_rate
+		self.nb_filter = nb_filter
 		self.nb_dense_block = len(nb_layers)
 		self.dropout_rate = dropout_rate
 		self.l2_reg = regularizers.l2(reg_weight)
@@ -45,7 +46,7 @@ class DenseNet(object):
 		relu_name_base = 'relu' + str(stage) + '_' + str(branch)
 
 		# 1x1 Convolution (Bottleneck layer)
-		inter_channel = nb_filter * 4  
+		inter_channel = nb_filter * 4
 		x = layers.BatchNormalization(name=conv_name_base+'_x1_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=self.is_training)
 		x = layers.ReLU(name=relu_name_base+'_x1')(x)
 		x = layers.Conv2D(inter_channel, 
@@ -88,7 +89,7 @@ class DenseNet(object):
 		relu_name_base = 'relu' + str(stage) + '_blk'
 		pool_name_base = 'pool' + str(stage) 
 
-		x = layers.BatchNormalization(name=conv_name_base+'_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=is_training)
+		x = layers.BatchNormalization(name=conv_name_base+'_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=self.is_training)
 		x = layers.ReLU(name=relu_name_base)(x)
 		x = layers.Conv2D(int(nb_filter * self.compression),
 						kernel_size=1, 
@@ -99,7 +100,7 @@ class DenseNet(object):
 						trainable=(not frozen))(x)
 
 		if self.dropout_rate:
-			x = layers.Dropout(self.dropout_rate)(x, training=is_training)
+			x = layers.Dropout(self.dropout_rate)(x, training=self.is_training)
 
 		x = layers.AveragePooling2D(2, name=pool_name_base)(x)
 
@@ -122,14 +123,14 @@ class DenseNet(object):
 			branch = i+1
 			x = self.conv_block(concat_feat, stage, branch, self.growth_rate, frozen)
 			concat_name = 'concat_'+str(stage)+'_'+str(branch)
-			concat_feat = layers.Concatenate(axis=concat_axis, name=concat_name)([concat_feat, x])
+			concat_feat = layers.Concatenate(axis=3, name=concat_name)([concat_feat, x])
 
 			if grow_nb_filters:
 				self.nb_filter += self.growth_rate
 
 		return concat_feat
 
-	def build(inputs, weights_path=None, fix_first=False, fix_first_two=False):
+	def build(self, inputs, weights_path=None, fix_first=False, fix_first_two=False):
 		'''Instantiate the DenseNet architecture,
 		# Arguments
 			weights_path: path to pre-trained weights
@@ -140,14 +141,14 @@ class DenseNet(object):
 		skips = []
 		
 		# Initial convolution
-		conv1 = layers.Conv2D(self.nb_filter, kernel_size=7, strides=2, padding='same', name='conv1', bias=False, kernel_regularizer=self.l2_reg)(inputs)
+		conv1 = layers.Conv2D(self.nb_filter, kernel_size=7, strides=2, padding='same', name='conv1', use_bias=False, kernel_regularizer=self.l2_reg)(inputs)
 		conv1_bn = layers.BatchNormalization(name='conv1_bn', **self.batch_norm_params)(conv1, training=self.is_training)
 		skips.append(conv1_bn)
 
 		relu1 = layers.ReLU(name='relu1')(conv1_bn)
 		maxpool1 = layers.MaxPool2D(3, strides=2, padding='same', name='pool1')(relu1)
 		skips.append(maxpool1)
-
+		x = maxpool1
 		# Add dense blocks
 		for block_idx in range(self.nb_dense_block - 1):
 			if fix_first_two:

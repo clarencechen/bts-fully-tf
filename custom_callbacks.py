@@ -4,9 +4,9 @@ import numpy as np
 import tensorflow as tf
 
 from tensorflow.keras import backend as K
-from tensorflow.keras.callbacks import Callback
+from tensorflow.keras import callbacks
 
-class BatchLRScheduler(Callback):
+class BatchLRScheduler(callbacks.Callback):
 	"""Learning rate scheduler.
 	# Arguments
 		schedule: a function that takes a batch index as input

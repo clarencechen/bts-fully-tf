@@ -5,7 +5,7 @@ from tensorflow.keras import Model
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers
 
-from custom_layers import UpSample, DownSample, LocalPlanarGuidance
+from custom_layers import LocalPlanarGuidance
 
 class BTSDecoder(object):
 	def __init__(self, width, height, max_depth, num_filters=256, is_training=False):
@@ -25,7 +25,7 @@ class BTSDecoder(object):
 		return out
 
 	def conv_block_no_lpg(self, inputs, skips, num_filters):
-		upsample = Upsample(ratio=2)(inputs)
+		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
 		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample)
 		upconv = layers.BatchNormalization(**self.batch_norm_params)(upconv, training=self.is_training)
 		concat = layers.Concatenate(axis=3)([upconv, skips])
@@ -33,7 +33,7 @@ class BTSDecoder(object):
 		return iconv
 
 	def conv_block(self, inputs, skips, lpgs, num_filters):
-		upsample = Upsample(ratio=2)(inputs)
+		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
 		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample)
 		upconv = layers.BatchNormalization(**self.batch_norm_params)(upconv, training=self.is_training)
 		concat = layers.Concatenate(axis=3)([upconv, skips, lpgs])
@@ -44,10 +44,10 @@ class BTSDecoder(object):
 		if batch_norm_first:
 			inputs = layers.BatchNormalization(**self.batch_norm_params)(inputs, training=self.is_training)
 		relu1 = layers.ReLU()(inputs)
-		iconv = layers.Conv2D(num_filters, kernel_size=1, stride=1, padding='same', activation=None)(relu1)
+		iconv = layers.Conv2D(num_filters, kernel_size=1, strides=1, padding='same', activation=None)(relu1)
 		iconv = layers.BatchNormalization(**self.batch_norm_params)(iconv, training=self.is_training)
 		relu2 = layers.ReLU()(iconv)
-		daspp = layers.Conv2D(num_filters / 2, kernel_size=3, dilation_rate=rate, padding='same', activation_fn=None)(relu2)
+		daspp = layers.Conv2D(num_filters // 2, kernel_size=3, dilation_rate=rate, padding='same', activation=None)(relu2)
 		return daspp
 
 	def build(self, dense_features, skip_2, skip_4, skip_8, skip_16):
@@ -55,13 +55,13 @@ class BTSDecoder(object):
 
 		iconv5 = self.conv_block_no_lpg(dense_features, skip_16, num_filters) # H/16
 
-		num_filters = num_filters / 2
+		num_filters = num_filters // 2
 		iconv4 = self.conv_block_no_lpg(iconv5, skip_8, num_filters) # H/8
 
 		iconv4_bn = layers.BatchNormalization(**self.batch_norm_params)(iconv4, training=self.is_training)
 		daspp_3 = self.dense_aspp_block(iconv4_bn, num_filters, rate=3, batch_norm_first=False)
 
-		concat4_2 = layers.Concatenate(axis=3)([iconv4, daspp_3])
+		concat4_2 = layers.Concatenate(axis=3)([iconv4, daspp_3]) # Minor edit
 		daspp_6 = self.dense_aspp_block(concat4_2, num_filters, rate=6)
 
 		concat4_3 = layers.Concatenate(axis=3)([concat4_2, daspp_6])
@@ -75,24 +75,24 @@ class BTSDecoder(object):
 
 		concat4_daspp = layers.Concatenate(axis=3)([iconv4_bn, daspp_3, daspp_6, daspp_12, daspp_18, daspp_24])
 
-		daspp_feat = layers.Conv2D(num_filters / 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
+		daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
 
 		depth_8x8_scaled = self.lpg_block(daspp_feat, upratio=8)
-		depth_8x8_scaled_ds = DownSample(ratio=4)(depth_8x8_scaled)
+		depth_8x8_scaled_ds = layers.AveragePooling2D(pool_size=4)(depth_8x8_scaled) # Need to find non-trainable Downsampling Layer
 
-		num_filters = num_filters / 2
+		num_filters = num_filters // 2
 		iconv3 = self.conv_block(daspp_feat, skip_4, depth_8x8_scaled_ds, num_filters) # H/4		
 
 		depth_4x4_scaled = self.lpg_block(iconv3, upratio=4)
-		depth_4x4_scaled_ds = DownSample(ratio=2)(depth_4x4_scaled)
+		depth_4x4_scaled_ds = layers.AveragePooling2D(pool_size=2)(depth_4x4_scaled) # Need to find non-trainable Downsampling Layer
 
-		num_filters = num_filters / 2
+		num_filters = num_filters // 2
 		iconv2 = self.conv_block(iconv3, skip_2, depth_4x4_scaled_ds, num_filters) # H/2
 
 		depth_2x2_scaled = self.lpg_block(iconv2, upratio=2)
 
-		num_filters = num_filters / 2
-		upsample1 = Upsample(ratio=2)(iconv2)
+		num_filters = num_filters // 2
+		upsample1 = layers.UpSampling2D(size=2, interpolation='nearest')(iconv2)
 		upconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample1) # H
 		concat1 = layers.Concatenate(axis=3)([upconv1, depth_2x2_scaled, depth_4x4_scaled, depth_8x8_scaled])
 		iconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat1)

@@ -186,7 +186,7 @@ class DenseNet(object):
 		model = Model(inputs, outputs, name='densenet')
 
 		if (weights_path is not None) and (weights_path != ''):
-		  model.load_weights(weights_path)
+		  model.load_weights(weights_path, by_name=True)
 
 		assert len(outputs) == (1 + self.nb_dense_block)
 		return tuple(outputs)

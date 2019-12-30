@@ -33,7 +33,7 @@ def si_log_loss_wrapper(dataset):
 		y_true_masked = tf.boolean_mask(tensor=y_true, mask=mask)
 		y_pred_masked = tf.boolean_mask(tensor=y_pred, mask=mask)
 
-		d = K.log(y_true_masked) -K.log(y_pred_masked)
+		d = K.log(y_true_masked +K.epsilon()) -K.log(y_pred_masked +K.epsilon())
 
 		return K.sqrt(K.mean(K.square(d)) - 0.85 * K.square(K.mean(d))) * 10.0 # Differs from paper
 
@@ -43,7 +43,7 @@ def si_log_loss_wrapper(dataset):
 def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
 	
 	is_training = True if mode == 'train' else False
-	input_image = Input(shape=(params.width, params.height, 3), batch_size=params.batch_size)
+	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size)
 
 
 	if params.encoder == 'densenet161_bts':

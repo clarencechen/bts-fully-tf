@@ -34,9 +34,11 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'num_epochs, ')
 
 from tensorflow.python import pywrap_tensorflow
+from tensorflow.keras import callbacks
+
 from bts_dataloader import *
-from custom_callbacks import BatchLRScheduler
 from bts import si_log_loss_wrapper, bts_model
+from custom_callbacks import BatchLRScheduler
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -143,14 +145,13 @@ def train(params):
 	model_callbacks = [callbacks.TerminateOnNaN(),
 					   BatchLRScheduler(poly_decay_fn, verbose=1),
 					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint('{}/{}/model'.format(args.log_directory, args.model_name), monitor='val_loss', save_best_only=False, mode='auto', period=1)]
+					   callbacks.ModelCheckpoint('{}/{}/model'.format(args.log_directory, args.model_name), monitor='val_loss', save_best_only=False, mode='auto', save_freq=500*params.batch_size)]
 
-	model.fit(x=dataloader.loader, 
-			  batch_size=params.batch_size,
-			  validation_split=0.1,
+	model.fit(x=dataloader.loader,
 			  epochs=params.num_epochs,
 			  verbose=1,
-			  callbacks=model_callbacks)
+			  callbacks=model_callbacks,
+			  steps_per_epoch=steps_per_epoch)
 
 	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf')
 	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())

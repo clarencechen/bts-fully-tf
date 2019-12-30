@@ -47,7 +47,7 @@ class DenseNet(object):
 
 		# 1x1 Convolution (Bottleneck layer)
 		inter_channel = nb_filter * 4
-		x = layers.BatchNormalization(name=conv_name_base+'_x1_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=self.is_training)
+		x = layers.BatchNormalization(name=conv_name_base+'_x1_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
 		x = layers.ReLU(name=relu_name_base+'_x1')(x)
 		x = layers.Conv2D(inter_channel, 
 						kernel_size=1, 
@@ -61,7 +61,7 @@ class DenseNet(object):
 			x = layers.Dropout(self.dropout_rate)(x, training=self.is_training)
 
 		# 3x3 Convolution
-		x = layers.BatchNormalization(name=conv_name_base+'_x2_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=self.is_training)
+		x = layers.BatchNormalization(name=conv_name_base+'_x2_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
 		x = layers.ReLU(name=relu_name_base+'_x2')(x)
 		x = layers.Conv2D(nb_filter, 
 						kernel_size=3, 
@@ -89,7 +89,7 @@ class DenseNet(object):
 		relu_name_base = 'relu' + str(stage) + '_blk'
 		pool_name_base = 'pool' + str(stage) 
 
-		x = layers.BatchNormalization(name=conv_name_base+'_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=self.is_training)
+		x = layers.BatchNormalization(name=conv_name_base+'_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
 		x = layers.ReLU(name=relu_name_base)(x)
 		x = layers.Conv2D(int(nb_filter * self.compression),
 						kernel_size=1, 
@@ -141,8 +141,15 @@ class DenseNet(object):
 		skips = []
 		
 		# Initial convolution
-		conv1 = layers.Conv2D(self.nb_filter, kernel_size=7, strides=2, padding='same', name='conv1', use_bias=False, kernel_regularizer=self.l2_reg)(inputs)
-		conv1_bn = layers.BatchNormalization(name='conv1_bn', **self.batch_norm_params)(conv1, training=self.is_training)
+		conv1 = layers.Conv2D(self.nb_filter, 
+							kernel_size=7, 
+							strides=2, 
+							padding='same', 
+							name='conv1', 
+							use_bias=False, 
+							trainable = (not (fix_first or fix_first_two)), 
+							kernel_regularizer=self.l2_reg)(inputs)
+		conv1_bn = layers.BatchNormalization(name='conv1_bn', **self.batch_norm_params, trainable=(not (fix_first or fix_first_two)))(conv1, training=False)
 		skips.append(conv1_bn)
 
 		relu1 = layers.ReLU(name='relu1')(conv1_bn)
@@ -170,7 +177,7 @@ class DenseNet(object):
 		final_stage = stage + 1
 		convfinal = self.dense_block(x, final_stage, self.nb_layers[-1], frozen=False)
 
-		convfinal_bn = layers.BatchNormalization(name='conv'+str(final_stage)+'_blk_bn', **self.batch_norm_params)(convfinal, training=self.is_training)
+		convfinal_bn = layers.BatchNormalization(name='conv'+str(final_stage)+'_blk_bn', **self.batch_norm_params)(convfinal, training=False)
 		dense_features = layers.ReLU(name='relu'+str(final_stage)+'_blk')(convfinal_bn)
 
 		outputs = [dense_features] + skips

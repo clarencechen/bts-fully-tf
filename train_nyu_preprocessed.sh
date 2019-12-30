@@ -1,7 +1,6 @@
 # Get DenseNet-161 model pretrained with ImageNet
 cd /content/bts-fully-tf
-python utils/download_from_gdrive.py 1rn7xBF5eSISFKL2bIa8o3d8dNnsrlWfJ models/densenet161_imagenet.zip
-cd models && unzip densenet161_imagenet.zip
+python utils/download_from_gdrive.py 0Byy2AcGyEVxfUDZwVjU2cFNidTA models/densenet161_imagenet/model
 # Download the NYU dataset used in the paper
 cd /content/bts-fully-tf
 python utils/download_from_gdrive.py 1AysroWpfISmm-yRFGBgFTrLy6FjQwvwP dataset/nyu_depth_v2/sync.zip

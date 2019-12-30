@@ -58,25 +58,25 @@ class BtsDataloader(object):
 
     def parse_function_test(self, line):
         split_line = tf.string_split([line]).values
-        image_path = tf.string_join([self.data_path, split_line[0]])
+        image_path = tf.strings.join([self.data_path, split_line[0]])
 
         if self.params.dataset in ['nyu', 'matterport']:
-            image = tf.image.decode_jpeg(tf.read_file(image_path))
+            image = tf.image.decode_jpeg(tf.io.read_file(image_path))
         else:
-            image = tf.image.decode_png(tf.read_file(image_path))
+            image = tf.image.decode_png(tf.io.read_file(image_path))
 
-        width_o = tf.to_float(array_ops.shape(image)[1])
+        width_o = tf.to_float(array_ops.shape(image)[1], dtype='float32')
         image = tf.image.convert_image_dtype(image, tf.float32)
-        focal = tf.string_to_number(split_line[2])
+        focal = tf.strings.to_number(split_line[2])
 
         if self.do_kb_crop is True:
-            height = tf.shape(image)[0]
-            width = tf.shape(image)[1]
-            top_margin = tf.to_int32(height - 352)
-            left_margin = tf.to_int32((width - 1216) / 2)
+            height = tf.shape(input=image)[0]
+            width = tf.shape(input=image)[1]
+            top_margin = tf.cast(height - 352, dtype='int32')
+            left_margin = tf.cast((width - 1216) / 2, dtype='int32')
             image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 
-        return image, focal
+        return image
 
     def test_preprocess(self, image, focal):
         # To use with model pretrained on ImageNet
@@ -87,19 +87,19 @@ class BtsDataloader(object):
         image.set_shape([None, None, 3])
         image = self.mean_image_subtraction(image, [103.939, 116.779, 123.68]) * 0.017
 
-        return image, focal
+        return image
 
     def parse_function_train(self, line):
         split_line = tf.string_split([line]).values
-        image_path = tf.string_join([self.data_path, split_line[0]])
-        depth_gt_path = tf.string_join([self.gt_path[:-1], split_line[1]])
+        image_path = tf.strings.join([self.data_path, split_line[0]])
+        depth_gt_path = tf.strings.join([self.gt_path[:-1], split_line[1]])
 
         if self.params.dataset in ['nyu', 'matterport']:
-            image = tf.image.decode_jpeg(tf.read_file(image_path))
+            image = tf.image.decode_jpeg(tf.io.read_file(image_path))
         else:
-            image = tf.image.decode_png(tf.read_file(image_path))
+            image = tf.image.decode_png(tf.io.read_file(image_path))
 
-        depth_gt = tf.image.decode_png(tf.read_file(depth_gt_path), channels=0, dtype=tf.uint16)
+        depth_gt = tf.image.decode_png(tf.io.read_file(depth_gt_path), channels=0, dtype=tf.uint16)
 
         if self.params.dataset in ['nyu', 'matterport']:
             depth_gt = tf.cast(depth_gt, tf.float32) / 1000.0
@@ -107,7 +107,7 @@ class BtsDataloader(object):
             depth_gt = tf.cast(depth_gt, tf.float32) / 256.0
 
         image = tf.image.convert_image_dtype(image, tf.float32)
-        focal = tf.string_to_number(split_line[2])
+        focal = tf.strings.to_number(split_line[2])
 
         # To avoid blank boundaries due to pixel registration
         if self.params.dataset == 'nyu':
@@ -116,31 +116,31 @@ class BtsDataloader(object):
 
         if self.do_kb_crop is True:
             print('Cropping training images as kitti benchmark images')
-            height = tf.shape(image)[0]
-            width = tf.shape(image)[1]
-            top_margin = tf.to_int32(height - 352)
-            left_margin = tf.to_int32((width - 1216) / 2)
+            height = tf.shape(input=image)[0]
+            width = tf.shape(input=image)[1]
+            top_margin = tf.cast(height - 352, dtype='int32')
+            left_margin = tf.cast((width - 1216) / 2, dtype='int32')
             depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
             image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 
         if self.do_rotate is True:
-            random_angle = tf.random_uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
+            random_angle = tf.random.uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
             image = tf.contrib.image.rotate(image, random_angle, interpolation='BILINEAR')
             depth_gt = tf.contrib.image.rotate(depth_gt, random_angle, interpolation='NEAREST')
 
         print('Do random cropping from fixed size input')
         image, depth_gt = self.random_crop_fixed_size(image, depth_gt)
 
-        return image, depth_gt, focal
+        return image, depth_gt
 
     def train_preprocess(self, image, depth_gt, focal):
         # Random flipping
-        do_flip = tf.random_uniform([], 0, 1)
+        do_flip = tf.random.uniform([], 0, 1)
         image = tf.cond(do_flip > 0.5, lambda: tf.image.flip_left_right(image), lambda: image)
         depth_gt = tf.cond(do_flip > 0.5, lambda: tf.image.flip_left_right(depth_gt), lambda: depth_gt)
 
         # Random gamma, brightness, color augmentation
-        do_augment = tf.random_uniform([], 0, 1)
+        do_augment = tf.random.uniform([], 0, 1)
         image = tf.cond(do_augment > 0.5, lambda: self.augment_image(image), lambda: image)
 
         # To use with model pretrained on ImageNet
@@ -153,7 +153,7 @@ class BtsDataloader(object):
         # Subtract ImageNet mean pixel values and scale
         image = self.mean_image_subtraction(image, [103.939, 116.779, 123.68]) * 0.017
 
-        return image, depth_gt, focal
+        return image, depth_gt
 
     @staticmethod
     def mean_image_subtraction(image, means):
@@ -186,7 +186,7 @@ class BtsDataloader(object):
 
     def random_crop_fixed_size(self, image, depth_gt):
         image_depth = tf.concat([image, depth_gt], 2)
-        image_depth_cropped = tf.random_crop(image_depth, [self.params.height, self.params.width, 4])
+        image_depth_cropped = tf.image.random_crop(image_depth, [self.params.height, self.params.width, 4])
 
         image_cropped = image_depth_cropped[:, :, 0:3]
         depth_gt_cropped = image_depth_cropped[:, :, 3:4]
@@ -196,16 +196,16 @@ class BtsDataloader(object):
     @staticmethod
     def augment_image(image):
         # gamma augmentation
-        gamma = tf.random_uniform([], 0.9, 1.1)
+        gamma = tf.random.uniform([], 0.9, 1.1)
         image_aug = image ** gamma
 
         # brightness augmentation
-        brightness = tf.random_uniform([], 0.75, 1.25)
+        brightness = tf.random.uniform([], 0.75, 1.25)
         image_aug = image_aug * brightness
 
         # color augmentation
-        colors = tf.random_uniform([3], 0.9, 1.1)
-        white = tf.ones([tf.shape(image)[0], tf.shape(image)[1]])
+        colors = tf.random.uniform([3], 0.9, 1.1)
+        white = tf.ones([tf.shape(input=image)[0], tf.shape(input=image)[1]])
         color_image = tf.stack([white * colors[i] for i in range(3)], axis=2)
         image_aug *= color_image
 

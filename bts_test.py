@@ -84,17 +84,17 @@ def test(params):
     model = BtsModel(params, 'test', image, None, focal=focal, bn_training=False)
 
     # SESSION
-    config = tf.ConfigProto(allow_soft_placement=True)
-    sess = tf.Session(config=config)
+    config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
+    sess = tf.compat.v1.Session(config=config)
 
     # INIT
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
+    sess.run(tf.compat.v1.global_variables_initializer())
+    sess.run(tf.compat.v1.local_variables_initializer())
     coordinator = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(sess=sess, coord=coordinator)
+    threads = tf.compat.v1.train.start_queue_runners(sess=sess, coord=coordinator)
 
     # SAVER
-    train_saver = tf.train.Saver()
+    train_saver = tf.compat.v1.train.Saver()
     
     with tf.device('/cpu:0'):
         restore_path = args.checkpoint_path
@@ -217,7 +217,7 @@ def main(_):
 
 
 if __name__ == '__main__':
-    tf.app.run()
+    tf.compat.v1.app.run()
 
 
 

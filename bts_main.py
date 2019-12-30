@@ -24,13 +24,14 @@ import sys
 
 from tensorflow.python import pywrap_tensorflow
 from bts_dataloader import *
-
+from custom_callbacks import BatchLRScheduler
+from bts import si_log_loss_wrapper, bts_model
 
 def convert_arg_line_to_args(arg_line):
-    for arg in arg_line.split():
-        if not arg.strip():
-            continue
-        yield arg
+	for arg in arg_line.split():
+		if not arg.strip():
+			continue
+		yield arg
 
 
 parser = argparse.ArgumentParser(description='BTS TensorFlow implementation.', fromfile_prefix_chars='@')
@@ -63,244 +64,123 @@ parser.add_argument('--fix_first_conv_blocks',                 help='if set, wil
 parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')
 
 if sys.argv.__len__() == 2:
-    arg_filename_with_prefix = '@' + sys.argv[1]
-    args = parser.parse_args([arg_filename_with_prefix])
+	arg_filename_with_prefix = '@' + sys.argv[1]
+	args = parser.parse_args([arg_filename_with_prefix])
 else:
-    args = parser.parse_args()
+	args = parser.parse_args()
 
 if args.mode == 'train' and not args.checkpoint_path:
-    from bts import *
+	from bts import *
 
 elif args.mode == 'train' and args.checkpoint_path:
-    model_dir = os.path.dirname(args.checkpoint_path)
-    model_name = os.path.basename(model_dir)
-    import sys
-    sys.path.append(model_dir)
-    for key, val in vars(__import__(model_name)).items():
-        if key.startswith('__') and key.endswith('__'):
-            continue
-        vars()[key] = val
+	model_dir = os.path.dirname(args.checkpoint_path)
+	model_name = os.path.basename(model_dir)
+	import sys
+	sys.path.append(model_dir)
+	for key, val in vars(__import__(model_name)).items():
+		if key.startswith('__') and key.endswith('__'):
+			continue
+		vars()[key] = val
 
 
 def get_num_lines(file_path):
-    f = open(file_path, 'r')
-    lines = f.readlines()
-    f.close()
-    return len(lines)
-
-
-def get_tensors_in_checkpoint_file(file_name,all_tensors=True,tensor_name=None):
-    varlist=[]
-    var_value =[]
-    reader = pywrap_tensorflow.NewCheckpointReader(file_name)
-    if all_tensors:
-      var_to_shape_map = reader.get_variable_to_shape_map()
-      for key in sorted(var_to_shape_map):
-        varlist.append(key)
-        var_value.append(reader.get_tensor(key))
-    else:
-        varlist.append(tensor_name)
-        var_value.append(reader.get_tensor(tensor_name))
-    return (varlist, var_value)
-
-
-def build_tensors_in_checkpoint_file(loaded_tensors):
-    full_var_list = list()
-    var_check = set()
-    # Loop all loaded tensors
-    for i, tensor_name in enumerate(loaded_tensors[0]):
-        # Extract tensor
-        try:
-            tensor_aux = tf.get_default_graph().get_tensor_by_name(tensor_name+":0")
-        except:
-            print(tensor_name + ' is in pretrained model but not in current training model')
-        if tensor_aux not in var_check:
-            full_var_list.append(tensor_aux)
-            var_check.add(tensor_aux)
-    return full_var_list
-
+	f = open(file_path, 'r')
+	lines = f.readlines()
+	f.close()
+	return len(lines)
 
 def train(params):
+	training_samples = get_num_lines(args.filenames_file)
 
-    with tf.Graph().as_default(), tf.device('/cpu:0'):
+	steps_per_epoch = np.ceil(training_samples / params.batch_size).astype(np.int32)
+	total_steps = params.num_epochs * steps_per_epoch
 
-        global_step = tf.Variable(0, trainable=False)
+	start_lr = args.learning_rate
+	end_lr = args.end_learning_rate if args.end_learning_rate != -1 else start_learning_rate * 0.1
+	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(((1 - min(step, total_steps))/total_steps)**0.9) +end_lr
 
-        num_training_samples = get_num_lines(args.filenames_file)
+	print("Total number of samples: {}".format(training_samples))
+	print("Total number of steps: {}".format(total_steps))
+	if args.fix_first_conv_blocks or args.fix_first_conv_block:
+		if args.fix_first_conv_blocks:
+			print('Fixing first two conv blocks')
+		else:
+			print('Fixing first conv block')
 
-        steps_per_epoch = np.ceil(num_training_samples / params.batch_size).astype(np.int32)
-        num_total_steps = params.num_epochs * steps_per_epoch
-        start_learning_rate = args.learning_rate
+	dataloader = BtsDataloader(args.data_path, args.gt_path, args.filenames_file, params, args.mode,
+							   do_rotate=args.do_random_rotate, degree=args.degree,
+							   do_kb_crop=args.do_kb_crop)
+	
+	model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
+												   fix_first_two=args.fix_first_conv_blocks, 
+												   pretrained_weights_path=args.pretrained_model)
+	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-3)
+	loss = si_log_loss_wrapper(params.dataset)
 
-        end_learning_rate = args.end_learning_rate if args.end_learning_rate != -1 else start_learning_rate * 0.1
-        learning_rate = tf.train.polynomial_decay(start_learning_rate, global_step, num_total_steps, end_learning_rate, 0.9)
-    
-        opt_step = tf.train.AdamOptimizer(learning_rate, epsilon=1e-3)
+	model.compile(optimizer=opt, loss=loss)
+	model.summary()
 
-        print("Total number of samples: {}".format(num_training_samples))
-        print("Total number of steps: {}".format(num_total_steps))
+	# Load checkpoint if set
+	if args.checkpoint_path != '':
+		ckpt = tf.train.Checkpoint(model=model, optimizer=opt)
+		ckpt_manager = tf.train.CheckpointManager(ckpt, args.checkpoint_path)
+		if ckpt_manager.latest_checkpoint:
+			ckpt.restore(args.checkpoint_path).assert_consumed()
+		if args.retrain:
+			initial_epoch = 0
 
-        if args.fix_first_conv_blocks or args.fix_first_conv_block:
-            if args.fix_first_conv_blocks:
-                print('Fixing first two conv blocks')
-            else:
-                print('Fixing first conv block')
+	model_callbacks = [callbacks.TerminateOnNaN(),
+					   BatchLRScheduler(poly_decay_fn, verbose=1),
+					   callbacks.ProgbarLogger(count_mode='steps'),
+					   callbacks.ModelCheckpoint('{}/{}/model'.format(args.log_directory, args.model_name), monitor='val_loss', save_best_only=False, mode='auto', period=1)]
 
-        dataloader = BtsDataloader(args.data_path, args.gt_path, args.filenames_file, params, args.mode,
-                                   do_rotate=args.do_random_rotate, degree=args.degree,
-                                   do_kb_crop=args.do_kb_crop)
+	model.fit(x=dataloader.loader, 
+			  batch_size=params.batch_size,
+			  validation_split=0.1,
+			  epochs=params.num_epochs,
+			  verbose=1,
+			  callbacks=model_callbacks)
 
-        dataloader_iter = dataloader.loader.make_initializable_iterator()
-        iter_init_op = dataloader_iter.initializer
-
-        tower_grads = []
-        tower_losses = []
-        reuse_variables = None
-        
-        with tf.variable_scope(tf.get_variable_scope()):
-            for i in range(args.num_gpus):
-                with tf.device('/gpu:%d' % i):
-                    image, depth_gt, focal = dataloader_iter.get_next()
-                    model = BtsModel(params, args.mode, image, depth_gt, focal=focal,
-                                     reuse_variables=reuse_variables, model_index=i, bn_training=False)
-
-                    loss = model.total_loss
-                    tower_losses.append(loss)
-
-                    reuse_variables = True
-                    
-                    if args.fix_first_conv_blocks or args.fix_first_conv_block:
-                        trainable_vars = tf.trainable_variables()
-                        if args.fix_first_conv_blocks:
-                            g_vars = [var for var in
-                                      trainable_vars  if ('conv1' or 'dense_block1' or 'dense_block2' or 'transition_block1' or 'transition_block2') not in var.name]
-                        else:
-                            g_vars = [var for var in
-                                      trainable_vars if ('dense_block1' or 'transition_block1') not in var.name]
-                    else:
-                        g_vars = None
-                        
-                    total_opt = opt_step.minimize(loss, global_step=global_step, name="adam_opt_loss", var_list=g_vars)
-                    
-                    
-        with tf.variable_scope(tf.get_variable_scope()):
-            with tf.device('/gpu:%d' % (args.num_gpus - 1)):
-                total_loss = tf.reduce_mean(tower_losses)
-
-        tf.summary.scalar('learning_rate', learning_rate, ['model_0'])
-        tf.summary.scalar('total_loss', total_loss, ['model_0'])
-        summary_op = tf.summary.merge_all('model_0')
-
-        config = tf.ConfigProto(allow_soft_placement=True)
-        config.gpu_options.allow_growth = True
-        sess = tf.Session(config=config)
-
-        summary_writer = tf.summary.FileWriter(args.log_directory + '/' + args.model_name, sess.graph)
-        train_saver = tf.train.Saver(max_to_keep=200)
-
-        total_num_parameters = 0
-        for variable in tf.trainable_variables():
-            total_num_parameters += np.array(variable.get_shape().as_list()).prod()
-            
-        print("Total number of trainable parameters: {}".format(total_num_parameters))
-        
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
-
-        coordinator = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(sess=sess, coord=coordinator)
-        
-        if args.pretrained_model != '':
-            vars_to_restore = get_tensors_in_checkpoint_file(file_name=args.pretrained_model)
-            tensors_to_load = build_tensors_in_checkpoint_file(vars_to_restore)
-            loader = tf.train.Saver(tensors_to_load)
-            loader.restore(sess, args.pretrained_model)
-
-        # Load checkpoint if set
-        if args.checkpoint_path != '':
-            restore_path = args.checkpoint_path
-            train_saver.restore(sess, restore_path)
-
-        if args.retrain:
-            sess.run(global_step.assign(0))
-
-        start_step = global_step.eval(session=sess)
-        start_time = time.time()
-        duration = 0
-        should_init_iter_op = False
-        if args.mode == 'train':
-            should_init_iter_op = True
-        for step in range(start_step, num_total_steps):
-            before_op_time = time.time()
-            if step % steps_per_epoch == 0 or should_init_iter_op is True:
-                sess.run(iter_init_op)
-                should_init_iter_op = False
-            
-            _, lr, loss_value = sess.run([total_opt, learning_rate, total_loss])
-            
-            print('step: {}/{}, lr: {:.12f}, loss: {:.12f}'.format(step, num_total_steps, lr, loss_value))
-
-            duration += time.time() - before_op_time
-            if step and step % 100 == 0:
-                examples_per_sec = params.batch_size / duration * 100
-                duration = 0
-                time_sofar = (time.time() - start_time) / 3600
-                training_time_left = (num_total_steps / step - 1.0) * time_sofar
-                print('%s:' % args.model_name)
-                print_string = 'examples/s: {:4.2f} | loss: {:.5f} | time elapsed: {:.2f}h | time left: {:.2f}h'
-                print(print_string.format(examples_per_sec, loss_value, time_sofar, training_time_left))
-                summary_str = sess.run(summary_op)
-                summary_writer.add_summary(summary_str, global_step=step)
-                summary_writer.flush()
-                
-            if step and step % 500 == 0:
-                train_saver.save(sess, args.log_directory + '/' + args.model_name + '/model', global_step=step)
-
-        train_saver.save(sess, args.log_directory + '/' + args.model_name + '/model', global_step=num_total_steps)
-        print('%s training finished' % args.model_name)
-        print(datetime.datetime.now())
+	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf')
+	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
 
 
-def main(_):
-    
-    params = bts_parameters(
-        encoder=args.encoder,
-        height=args.input_height,
-        width=args.input_width,
-        batch_size=args.batch_size,
-        dataset=args.dataset,
-        max_depth=args.max_depth,
-        num_gpus=args.num_gpus,
-        num_threads=args.num_threads,
-        num_epochs=args.num_epochs)
+def main():
+	
+	params = bts_parameters(
+		encoder=args.encoder,
+		height=args.input_height,
+		width=args.input_width,
+		batch_size=args.batch_size,
+		dataset=args.dataset,
+		max_depth=args.max_depth,
+		num_gpus=args.num_gpus,
+		num_threads=args.num_threads,
+		num_epochs=args.num_epochs)
 
-    if args.mode == 'train':
-        model_filename = args.model_name + '.py'
-        command = 'mkdir ' + args.log_directory + '/' + args.model_name
-        os.system(command)
+	if args.mode == 'train':
+		model_filename = args.model_name + '.py'
+		command = 'mkdir {}/{}'.format(args.log_directory, args.model_name)
+		os.system(command)
 
-        args_out_path = args.log_directory + '/' + args.model_name + '/' + sys.argv[1]
-        command = 'cp ' + sys.argv[1] + ' ' + args_out_path
-        os.system(command)
+		command = 'cp {} {}/{}/{}'.format(sys.argv[1], args.log_directory, args.model_name, sys.argv[1])
+		os.system(command)
 
-        if args.checkpoint_path == '':
-            model_out_path = args.log_directory + '/' + args.model_name + '/' + model_filename
-            command = 'cp bts.py ' + model_out_path
-            os.system(command)
-        else:
-            loaded_model_dir = os.path.dirname(args.checkpoint_path)
-            loaded_model_name = os.path.basename(loaded_model_dir)
-            loaded_model_filename = loaded_model_name + '.py'
+		if args.checkpoint_path == '':
+			command = 'cp bts.py {}/{}/{}'.format(args.log_directory, args.model_name, model_filename)
+			os.system(command)
+		else:
+			loaded_model_dir = os.path.dirname(args.checkpoint_path)
+			loaded_model_filename = os.path.basename(loaded_model_dir) + '.py'
 
-            model_out_path = args.log_directory + '/' + args.model_name + '/' + model_filename
-            command = 'cp ' + loaded_model_dir + '/' + loaded_model_filename + ' ' + model_out_path
-            os.system(command)
-        
-        train(params)
-        
-    elif args.mode == 'test':
-        print('This script does not support testing. Use bts_test.py instead.')
+			command = 'cp {}/{} {}/{}/{}'.format(loaded_model_dir, loaded_model_filename, args.log_directory, args.model_name, model_filename)
+			os.system(command)
+
+		train(params)
+		
+	elif args.mode == 'test':
+		print('This script does not support testing. Use bts_test.py instead.')
 
 
 if __name__ == '__main__':
-    tf.app.run()
+	main()

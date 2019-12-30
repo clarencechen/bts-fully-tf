@@ -18,9 +18,9 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import tensorflow as tf
-import tf.keras.backend as K
+import tensorflow.keras.backend as K
 
-from tf.keras import Input, Model, Loss
+from tensorflow.keras import Input, Model
 from bts_decoder import BTSDecoder
 from bts_densenet import DenseNet
 

@@ -2,9 +2,9 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import tensorflow as tf
-from tf.keras import Model
-from tf.keras import backend as K
-from tf.keras import layers
+from tensorflow.keras import Model
+from tensorflow.keras import backend as K
+from tensorflow.keras import layers
 
 class DenseNet(object):
 	def __init__(self, nb_layers, growth_rate=48, nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-4, is_training=False):

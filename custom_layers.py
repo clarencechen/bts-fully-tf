@@ -1,9 +1,10 @@
-from tf.keras import layers
+import tensorflow as tf
+from tensorflow.keras import layers
 try:
-    from tf.keras import initializations
+    from tensorflow.keras import initializations
 except ImportError:
-    from tf.keras import initializers as initializations
-import tf.keras.backend as K
+    from tensorflow.keras import initializers as initializations
+import tensorflow.keras.backend as K
 
 class UpSample(layers.Layer):
 	def __init__(self, ratio, method='NN', **kwargs):

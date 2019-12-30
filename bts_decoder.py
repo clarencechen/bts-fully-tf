@@ -1,13 +1,13 @@
 from __future__ import absolute_import, division, print_function
 
 import tensorflow as tf
-from tf.keras import Model
-from tf.keras import backend as K
-from tf.keras import layers
+from tensorflow.keras import Model
+from tensorflow.keras import backend as K
+from tensorflow.keras import layers
 
 from custom_layers import UpSample, DownSample, LocalPlanarGuidance
 
-class BTSDecoder(Object):
+class BTSDecoder(object):
 	def __init__(self, width, height, max_depth, num_filters=256, is_training=False):
 		self.num_filters = num_filters
 		self.batch_norm_params = {'scale': True,

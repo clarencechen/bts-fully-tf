@@ -65,7 +65,7 @@ class BtsDataloader(object):
         else:
             image = tf.image.decode_png(tf.io.read_file(image_path))
 
-        width_o = tf.to_float(array_ops.shape(image)[1], dtype='float32')
+        width_o = tf.cast(array_ops.shape(image)[1], dtype='float32')
         image = tf.image.convert_image_dtype(image, tf.float32)
         focal = tf.strings.to_number(split_line[2])
 

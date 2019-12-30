@@ -22,6 +22,17 @@ import time
 import datetime
 import sys
 
+from collections import namedtuple
+
+bts_parameters = namedtuple('parameters', 'encoder, '
+										  'height, width, '
+										  'max_depth, '
+										  'batch_size, '
+										  'dataset, '
+										  'num_gpus, '
+										  'num_threads, '
+										  'num_epochs, ')
+
 from tensorflow.python import pywrap_tensorflow
 from bts_dataloader import *
 from custom_callbacks import BatchLRScheduler
@@ -96,7 +107,7 @@ def train(params):
 	total_steps = params.num_epochs * steps_per_epoch
 
 	start_lr = args.learning_rate
-	end_lr = args.end_learning_rate if args.end_learning_rate != -1 else start_learning_rate * 0.1
+	end_lr = args.end_learning_rate if args.end_learning_rate != -1 else start_lr * 0.1
 	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(((1 - min(step, total_steps))/total_steps)**0.9) +end_lr
 
 	print("Total number of samples: {}".format(training_samples))

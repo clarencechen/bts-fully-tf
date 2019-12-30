@@ -73,7 +73,7 @@ class DenseNet(object):
 		if self.dropout_rate:
 			x = layers.Dropout(self.dropout_rate)(x, training=self.is_training)
 
-	return x
+		return x
 
 	def transition_block(self, x, stage, nb_filter, frozen=False):
 		''' Apply BatchNorm, 1x1 Convolution, averagePooling, optional compression, dropout 

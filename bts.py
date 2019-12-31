@@ -34,7 +34,6 @@ def si_log_loss_wrapper(dataset):
 		y_pred_masked = tf.boolean_mask(tensor=y_pred, mask=mask)
 
 		d = K.log(y_true_masked +K.epsilon()) -K.log(y_pred_masked +K.epsilon())
-
 		return K.sqrt(K.mean(K.square(d)) - 0.85 * K.square(K.mean(d))) * 10.0 # Differs from paper
 
 	assert dataset in gt_th

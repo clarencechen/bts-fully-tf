@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers, regularizers
+from custom_layers import Scale
 
 class DenseNet(object):
 	def __init__(self, nb_layers, growth_rate=48, nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-4, is_training=False):
@@ -28,10 +29,9 @@ class DenseNet(object):
 		self.l2_reg = regularizers.l2(reg_weight)
 		self.is_training = is_training
 		self.compression = 1.0 - reduction
-		self.batch_norm_params = {'scale': True,
-						 'momentum': 0.99,
+		self.batch_norm_params = {'momentum': 0.99,
 						 'epsilon': 1.1e-5,
-						 'fused': True}
+						 'fused': True, }
 
 	def conv_block(self, x, stage, branch, nb_filter, frozen=False):
 		'''Apply BatchNorm, Relu, bottleneck 1x1 Conv2D, 3x3 Conv2D, and optional dropout
@@ -48,6 +48,7 @@ class DenseNet(object):
 		# 1x1 Convolution (Bottleneck layer)
 		inter_channel = nb_filter * 4
 		x = layers.BatchNormalization(name=conv_name_base+'_x1_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
+		x = Scale(axis=3, name=conv_name_base+'_x1_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base+'_x1')(x)
 		x = layers.Conv2D(inter_channel, 
 						kernel_size=1, 
@@ -62,6 +63,7 @@ class DenseNet(object):
 
 		# 3x3 Convolution
 		x = layers.BatchNormalization(name=conv_name_base+'_x2_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
+		x = Scale(axis=3, name=conv_name_base+'_x2_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base+'_x2')(x)
 		x = layers.Conv2D(nb_filter, 
 						kernel_size=3, 
@@ -90,6 +92,7 @@ class DenseNet(object):
 		pool_name_base = 'pool' + str(stage) 
 
 		x = layers.BatchNormalization(name=conv_name_base+'_bn', **self.batch_norm_params, trainable=(not frozen))(x, training=False)
+		x = Scale(axis=3, name=conv_name_base+'_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base)(x)
 		x = layers.Conv2D(int(nb_filter * self.compression),
 						kernel_size=1, 
@@ -116,7 +119,6 @@ class DenseNet(object):
 				frozen: flag to freeze all layers in block
 		'''
 
-		eps = 1.1e-5
 		concat_feat = x
 
 		for i in range(nb_layers):
@@ -150,9 +152,10 @@ class DenseNet(object):
 							trainable = (not (fix_first or fix_first_two)), 
 							kernel_regularizer=self.l2_reg)(inputs)
 		conv1_bn = layers.BatchNormalization(name='conv1_bn', **self.batch_norm_params, trainable=(not (fix_first or fix_first_two)))(conv1, training=False)
-		skips.append(conv1_bn)
-
+		conv1_bn = Scale(axis=3, name='conv1_scale', trainable=(not (fix_first or fix_first_two)))(conv1_bn)
 		relu1 = layers.ReLU(name='relu1')(conv1_bn)
+		skips.append(relu1)
+
 		maxpool1 = layers.MaxPool2D(3, strides=2, padding='same', name='pool1')(relu1)
 		skips.append(maxpool1)
 		x = maxpool1
@@ -170,6 +173,7 @@ class DenseNet(object):
 
 			# Add transition_block
 			x = self.transition_block(x, stage, self.nb_filter, frozen=freeze_layers)
+			x = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='output after block {} transition is invalid'.format(block_idx)))(x)
 			self.nb_filter = int(self.nb_filter * self.compression)
 			if block_idx < self.nb_dense_block - 2:
 				skips.append(x)
@@ -178,6 +182,7 @@ class DenseNet(object):
 		convfinal = self.dense_block(x, final_stage, self.nb_layers[-1], frozen=False)
 
 		convfinal_bn = layers.BatchNormalization(name='conv'+str(final_stage)+'_blk_bn', **self.batch_norm_params)(convfinal, training=False)
+		convfinal_bn = Scale(axis=3, name='conv'+str(final_stage)+'_blk_scale')(convfinal_bn)
 		dense_features = layers.ReLU(name='relu'+str(final_stage)+'_blk')(convfinal_bn)
 
 		outputs = [dense_features] + skips

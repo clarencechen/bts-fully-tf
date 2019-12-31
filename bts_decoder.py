@@ -10,8 +10,7 @@ from custom_layers import LocalPlanarGuidance
 class BTSDecoder(object):
 	def __init__(self, width, height, max_depth, num_filters=256, is_training=False):
 		self.num_filters = num_filters
-		self.batch_norm_params = {'scale': True,
-						 'momentum': 0.99,
+		self.batch_norm_params = {'momentum': 0.99,
 						 'epsilon': 1.1e-5,
 						 'fused': True, }
 		self.full_width = width
@@ -21,8 +20,7 @@ class BTSDecoder(object):
 
 	def lpg_block(self, inputs, upratio):
 		depth = LocalPlanarGuidance(height=self.full_height, width=self.full_width, upratio=upratio)(inputs)
-		out = layers.Lambda(lambda inputs: inputs / self.max_depth)(depth)
-		return out
+		return depth
 
 	def conv_block_no_lpg(self, inputs, skips, num_filters):
 		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
@@ -74,7 +72,6 @@ class BTSDecoder(object):
 		daspp_24 = self.dense_aspp_block(concat4_5, num_filters, rate=24)
 
 		concat4_daspp = layers.Concatenate(axis=3)([iconv4_bn, daspp_3, daspp_6, daspp_12, daspp_18, daspp_24])
-
 		daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
 
 		depth_8x8_scaled = self.lpg_block(daspp_feat, upratio=8)
@@ -97,6 +94,7 @@ class BTSDecoder(object):
 		concat1 = layers.Concatenate(axis=3)([upconv1, depth_2x2_scaled, depth_4x4_scaled, depth_8x8_scaled])
 		iconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat1)
 
+		iconv1 = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='decoder output is invalid'))(iconv1)
 		depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid')(iconv1)
 		depth_est = layers.Lambda(lambda inputs: inputs * self.max_depth)(depth_est_scaled)
 		return depth_est

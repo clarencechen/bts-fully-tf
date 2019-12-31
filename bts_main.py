@@ -109,8 +109,8 @@ def train(params):
 	total_steps = params.num_epochs * steps_per_epoch
 
 	start_lr = args.learning_rate
-	end_lr = args.end_learning_rate if args.end_learning_rate != -1 else start_lr * 0.1
-	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(((1 - min(step, total_steps))/total_steps)**0.9) +end_lr
+	end_lr = args.end_learning_rate if args.end_learning_rate > 0 else start_lr * 0.1
+	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*((1 - min(step, total_steps)/total_steps)**0.9) +end_lr
 
 	print("Total number of samples: {}".format(training_samples))
 	print("Total number of steps: {}".format(total_steps))
@@ -153,7 +153,7 @@ def train(params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf')
+	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf', weights_only=True) # Temporary measure pending model serialization bugfix
 	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
 
 

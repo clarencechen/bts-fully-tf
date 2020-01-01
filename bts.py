@@ -21,8 +21,8 @@ import tensorflow as tf
 import tensorflow.keras.backend as K
 
 from tensorflow.keras import Input, Model
-from bts_decoder import BTSDecoder
-from bts_densenet import DenseNet
+from bts_decoder import decoder_model
+from bts_densenet import densenet_model
 
 def si_log_loss_wrapper(dataset):
 	gt_th = {'nyu':0.1, 'kitti':1.0, 'matterport':0.1}
@@ -44,21 +44,41 @@ def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pret
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size)
 
-
 	if params.encoder == 'densenet161_bts':
-		encoder_arch = DenseNet([6,12,36,24], growth_rate=48, nb_filter=96, reduction=0.5, is_training=is_training)
-		decoder_arch = BTSDecoder(params.width, params.height, params.max_depth, num_filters=512, is_training=is_training)	
-	elif params.encoder == 'densenet121_bts':
-		encoder_arch = DenseNet([6,12,24,16], growth_rate=32, nb_filter=64, reduction=0.5, is_training=is_training)
-		decoder_arch = BTSDecoder(params.width, params.height, params.max_depth, num_filters=256, is_training=is_training)
-	else:
-		return None
-		
-	dense_features, skip_2, skip_4, skip_8, skip_16 = encoder_arch.build(input_image, 
+		dense_features, skip_2, skip_4, skip_8, skip_16 = densenet_model(input_image, 
+																		 [6,12,36,24],
+																		 growth_rate=48,
+																		 init_nb_filter=96,
+																		 reduction=0.5,
+																		 is_training=is_training,
 																		 weights_path=pretrained_weights_path,
 																		 fix_first=fix_first,
 																		 fix_first_two=fix_first_two)
-	depth_est = decoder_arch.build(dense_features, skip_2, skip_4, skip_8, skip_16)
+		depth_est = decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, 
+																		  params.height, 
+																		  params.width, 
+																		  params.max_depth, 
+																		  num_filters=512, 
+																		  is_training=is_training)
+	elif params.encoder == 'densenet121_bts':
+		dense_features, skip_2, skip_4, skip_8, skip_16 = densenet_model(input_image,
+																		 [6,12,24,16],
+																		 growth_rate=32,
+																		 init_nb_filter=64,
+																		 reduction=0.5,
+																		 is_training=is_training,
+																		 weights_path=pretrained_weights_path,
+																		 fix_first=fix_first,
+																		 fix_first_two=fix_first_two)
+		depth_est = decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, 
+																		  params.height, 
+																		  params.width,
+																		  params.max_depth, 
+		 																  num_filters=256, 
+																		  is_training=is_training)
+	else:
+		return None
+
 	model = Model(inputs=input_image, outputs=depth_est)
 	return model
 

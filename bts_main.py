@@ -153,7 +153,7 @@ def train(params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf', weights_only=True) # Temporary measure pending model serialization bugfix
+	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf')
 	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
 
 

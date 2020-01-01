@@ -73,15 +73,18 @@ class BTSDecoder(object):
 
 		concat4_daspp = layers.Concatenate(axis=3)([iconv4_bn, daspp_3, daspp_6, daspp_12, daspp_18, daspp_24])
 		daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
+		daspp_feat = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='daspp_feat tensor is invalid'))(daspp_feat)
 
 		depth_8x8_scaled = self.lpg_block(daspp_feat, upratio=8)
 		depth_8x8_scaled_ds = layers.AveragePooling2D(pool_size=4)(depth_8x8_scaled) # Need to find non-trainable Downsampling Layer
+		depth_8x8_scaled_ds = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='depth_8x8_scaled_ds tensor is invalid'))(depth_8x8_scaled_ds)
 
 		num_filters = num_filters // 2
 		iconv3 = self.conv_block(daspp_feat, skip_4, depth_8x8_scaled_ds, num_filters) # H/4		
 
 		depth_4x4_scaled = self.lpg_block(iconv3, upratio=4)
 		depth_4x4_scaled_ds = layers.AveragePooling2D(pool_size=2)(depth_4x4_scaled) # Need to find non-trainable Downsampling Layer
+		depth_4x4_scaled_ds = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='depth_4x4_scaled_ds tensor is invalid'))(depth_4x4_scaled_ds)
 
 		num_filters = num_filters // 2
 		iconv2 = self.conv_block(iconv3, skip_2, depth_4x4_scaled_ds, num_filters) # H/2
@@ -93,8 +96,8 @@ class BTSDecoder(object):
 		upconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample1) # H
 		concat1 = layers.Concatenate(axis=3)([upconv1, depth_2x2_scaled, depth_4x4_scaled, depth_8x8_scaled])
 		iconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat1)
+		iconv1 = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='iconv1 tensor is invalid'))(iconv1)
 
-		iconv1 = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='decoder output is invalid'))(iconv1)
 		depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid')(iconv1)
 		depth_est = layers.Lambda(lambda inputs: inputs * self.max_depth)(depth_est_scaled)
 		return depth_est

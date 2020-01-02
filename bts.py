@@ -39,8 +39,8 @@ def si_log_loss_wrapper(dataset):
 	assert dataset in gt_th
 	return si_log_loss
 
-def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
-	
+def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None, summary_writer=None):
+
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size)
 
@@ -79,22 +79,9 @@ def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pret
 	else:
 		return None
 
+	# tf.summary.image('input_image', (input_image[:, :, :, ::-1] +K.epsilon()), max_outputs=4)
+	# tf.summary.image('depth_est', 1 / (depth_est +K.epsilon()), max_outputs=4)
+	# tf.summary.image('depth_est_cropped', 1 / (depth_est[:, 8:params.height -8, 8:params.width -8, :] +K.epsilon()), max_outputs=4)
+
 	model = Model(inputs=input_image, outputs=depth_est)
 	return model
-
-'''
-def build_summaries(self):
-	with tf.device('/cpu:0'):
-		tf.compat.v1.summary.scalar('silog_loss', self.silog_loss, collections=self.model_collection)
-
-		depth_gt = tf.where(self.depth_gt < 1e-3, self.depth_gt * 0 + 1e3, self.depth_gt)
-		tf.compat.v1.summary.image('depth_gt', 1 / depth_gt, max_outputs=4, collections=self.model_collection)
-		tf.compat.v1.summary.image('depth_est', 1 / self.depth_est, max_outputs=4, collections=self.model_collection)
-		tf.compat.v1.summary.image('depth_est_cropped',
-						 1 / self.depth_est[:, 8:params.height - 8, 8:self.params.width - 8, :], max_outputs=4,
-						 collections=self.model_collection)
-		tf.compat.v1.summary.image('depth_est_2x2', 1 / self.depth_2x2, max_outputs=4, collections=self.model_collection)
-		tf.compat.v1.summary.image('depth_est_4x4', 1 / self.depth_4x4, max_outputs=4, collections=self.model_collection)
-		tf.compat.v1.summary.image('depth_est_8x8', 1 / self.depth_8x8, max_outputs=4, collections=self.model_collection)
-		tf.compat.v1.summary.image('image', self.input_image[:, :, :, ::-1], max_outputs=4, collections=self.model_collection)
-'''

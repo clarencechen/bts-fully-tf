@@ -2,9 +2,9 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers
 try:
-    from tensorflow.keras import initializations
+	from tensorflow.keras import initializations
 except ImportError:
-    from tensorflow.keras import initializers as initializations
+	from tensorflow.keras import initializers as initializations
 import tensorflow.keras.backend as K
 
 class LocalPlanarGuidance(layers.Conv2D):
@@ -36,13 +36,10 @@ class LocalPlanarGuidance(layers.Conv2D):
 		raw_normal, raw_dist = K.tanh(conv_out[:, :, :, 0:3]), K.sigmoid(conv_out[:, :, :, 3:])
 		plane_coeffs = K.concatenate([raw_normal, raw_dist], axis=3)
 
-		plane = K.reshape(plane_coeffs, (self.batch_size, -1, 1, 4))
-		plane = K.concatenate([plane]*self.upratio, axis=2)
-		plane = K.reshape(plane, (self.batch_size, self.full_height//self.upratio, -1, 4))
-		plane = K.concatenate([plane]*self.upratio, axis=2)
-		plane = K.reshape(plane, (self.batch_size, self.full_height, self.full_width, 4))
+		plane_exp_height = K.repeat_elements(plane_coeffs, self.upratio, axis=1)
+		plane_exp = K.repeat_elements(plane_exp_height, self.upratio, axis=2)
 
-		plane_normal_unit, plane_dist = K.l2_normalize(plane[:, :, :, 0:3], axis=3), plane[:, :, :, 3:]
+		plane_normal_unit, plane_dist = K.l2_normalize(plane_exp[:, :, :, 0:3], axis=3), plane_exp[:, :, :, 3:]
 		denominator = K.sum(self.pixel_dir_unit*plane_normal_unit, axis=3, keepdims=True)
 		return plane_dist / (denominator + K.epsilon()) # V2 Update (Normalize first)
 
@@ -52,61 +49,61 @@ class LocalPlanarGuidance(layers.Conv2D):
 		return dict(list(base_config.items()) + list(config.items()))
 
 class Scale(layers.Layer):
-    '''Custom Layer for DenseNet used for BatchNormalization.
-    
-    Learns a set of weights and biases used for scaling the input data.
-    the output consists simply in an element-wise multiplication of the input
-    and a sum of a set of constants:
+	'''Custom Layer for DenseNet used for BatchNormalization.
+	
+	Learns a set of weights and biases used for scaling the input data.
+	the output consists simply in an element-wise multiplication of the input
+	and a sum of a set of constants:
 
-        out = in * gamma + beta,
+		out = in * gamma + beta,
 
-    where 'gamma' and 'beta' are the weights and biases larned.
+	where 'gamma' and 'beta' are the weights and biases larned.
 
-    # Arguments
-        axis: integer, axis along which to normalize in mode 0. For instance,
-            if your input tensor has shape (samples, channels, rows, cols),
-            set axis to 1 to normalize per feature map (channels axis).
-        momentum: momentum in the computation of the
-            exponential average of the mean and standard deviation
-            of the data, for feature-wise normalization.
-        weights: Initialization weights.
-            List of 2 Numpy arrays, with shapes:
-            `[(input_shape,), (input_shape,)]`
-        beta_init: name of initialization function for shift parameter
-            (see [initializations](../initializations.md)), or alternatively,
-            Theano/TensorFlow function to use for weights initialization.
-            This parameter is only relevant if you don't pass a `weights` argument.
-        gamma_init: name of initialization function for scale parameter (see
-            [initializations](../initializations.md)), or alternatively,
-            Theano/TensorFlow function to use for weights initialization.
-            This parameter is only relevant if you don't pass a `weights` argument.
-    '''
-    def __init__(self, weights=None, axis=-1, momentum = 0.9, beta_init='zero', gamma_init='one', **kwargs):
-        self.momentum = momentum
-        self.axis = axis
-        self.beta_init = initializations.get(beta_init)
-        self.gamma_init = initializations.get(gamma_init)
-        self.initial_weights = weights
-        super(Scale, self).__init__(**kwargs)
+	# Arguments
+		axis: integer, axis along which to normalize in mode 0. For instance,
+			if your input tensor has shape (samples, channels, rows, cols),
+			set axis to 1 to normalize per feature map (channels axis).
+		momentum: momentum in the computation of the
+			exponential average of the mean and standard deviation
+			of the data, for feature-wise normalization.
+		weights: Initialization weights.
+			List of 2 Numpy arrays, with shapes:
+			`[(input_shape,), (input_shape,)]`
+		beta_init: name of initialization function for shift parameter
+			(see [initializations](../initializations.md)), or alternatively,
+			Theano/TensorFlow function to use for weights initialization.
+			This parameter is only relevant if you don't pass a `weights` argument.
+		gamma_init: name of initialization function for scale parameter (see
+			[initializations](../initializations.md)), or alternatively,
+			Theano/TensorFlow function to use for weights initialization.
+			This parameter is only relevant if you don't pass a `weights` argument.
+	'''
+	def __init__(self, weights=None, axis=-1, momentum = 0.9, beta_init='zero', gamma_init='one', **kwargs):
+		self.momentum = momentum
+		self.axis = axis
+		self.beta_init = initializations.get(beta_init)
+		self.gamma_init = initializations.get(gamma_init)
+		self.initial_weights = weights
+		super(Scale, self).__init__(**kwargs)
 
-    def build(self, input_shape):
-        shape = (int(input_shape[self.axis]),)
+	def build(self, input_shape):
+		shape = (int(input_shape[self.axis]),)
 
-        self.gamma = K.variable(self.gamma_init(shape), name='{}_gamma'.format(self.name))
-        self.beta = K.variable(self.beta_init(shape), name='{}_beta'.format(self.name))
+		self.gamma = K.variable(self.gamma_init(shape), name='{}_gamma'.format(self.name))
+		self.beta = K.variable(self.beta_init(shape), name='{}_beta'.format(self.name))
 
-        if self.initial_weights is not None:
-            self.set_weights(self.initial_weights)
-            del self.initial_weights
+		if self.initial_weights is not None:
+			self.set_weights(self.initial_weights)
+			del self.initial_weights
 
-    def call(self, x, mask=None):
-        broadcast_shape = [1] * len(x.shape)
-        broadcast_shape[self.axis] = x.shape[self.axis]
+	def call(self, x, mask=None):
+		broadcast_shape = [1] * len(x.shape)
+		broadcast_shape[self.axis] = x.shape[self.axis]
 
-        out = K.reshape(self.gamma, broadcast_shape) * x + K.reshape(self.beta, broadcast_shape)
-        return out
+		out = K.reshape(self.gamma, broadcast_shape) * x + K.reshape(self.beta, broadcast_shape)
+		return out
 
-    def get_config(self):
-        config = {"momentum": self.momentum, "axis": self.axis}
-        base_config = super(Scale, self).get_config()
-        return dict(list(base_config.items()) + list(config.items()))
+	def get_config(self):
+		config = {"momentum": self.momentum, "axis": self.axis}
+		base_config = super(Scale, self).get_config()
+		return dict(list(base_config.items()) + list(config.items()))

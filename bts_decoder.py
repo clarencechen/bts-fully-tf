@@ -89,4 +89,9 @@ def decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, full_height, 
 
 	depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid')(iconv1)
 	depth_est = layers.Lambda(lambda inputs: inputs * max_depth)(depth_est_scaled)
+
+	# tf.summary.image('depth_est_2x2_scaled', 1 / (depth_2x2_scaled + K.epsilon()), max_outputs=4)
+	# tf.summary.image('depth_est_4x4_scaled', 1 / (depth_4x4_scaled + K.epsilon()), max_outputs=4)
+	# tf.summary.image('depth_est_8x8_scaled', 1 / (depth_8x8_scaled + K.epsilon()), max_outputs=4)
+
 	return depth_est

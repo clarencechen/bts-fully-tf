@@ -124,12 +124,17 @@ def train(params):
 							   do_rotate=args.do_random_rotate, degree=args.degree,
 							   do_kb_crop=args.do_kb_crop)
 	
+	tensorboard_log_dir = '{}/{}'.format(args.log_directory, args.model_name)
+	tensorboard_writer = tf.summary.create_file_writer(tensorboard_log_dir)
+	
+	model_save_dir = '{}/{}/model'.format(args.log_directory, args.model_name)
+	
 	model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 												   fix_first_two=args.fix_first_conv_blocks, 
-												   pretrained_weights_path=args.pretrained_model)
+												   pretrained_weights_path=args.pretrained_model,
+												   summary_writer=tensorboard_writer)
 	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-3)
 	loss = si_log_loss_wrapper(params.dataset)
-
 	model.compile(optimizer=opt, loss=loss)
 	model.summary()
 
@@ -142,10 +147,11 @@ def train(params):
 		if args.retrain:
 			initial_epoch = 0
 
-	model_callbacks = [callbacks.TerminateOnNaN(),
-					   BatchLRScheduler(poly_decay_fn, verbose=1),
+	model_callbacks = [BatchLRScheduler(poly_decay_fn, verbose=1),
+					   callbacks.TerminateOnNaN(),
+					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint('{}/{}/model'.format(args.log_directory, args.model_name), monitor='val_loss', save_best_only=False, mode='auto', save_freq=500*params.batch_size)]
+					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=500*params.batch_size)]
 
 	model.fit(x=dataloader.loader,
 			  epochs=params.num_epochs,
@@ -153,7 +159,7 @@ def train(params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save('{}/{}/model'.format(args.log_directory, args.model_name), save_format='tf')
+	model.save(model_save_dir, save_format='tf')
 	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
 
 

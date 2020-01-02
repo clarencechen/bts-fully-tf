@@ -15,8 +15,10 @@ class BatchLRScheduler(callbacks.Callback):
 		verbose: int. 0: quiet, 1: update messages.
 	"""
 
-	def __init__(self, schedule, verbose=0):
+	def __init__(self, schedule, steps_per_epoch, verbose=0):
 		super(BatchLRScheduler, self).__init__()
+		self.steps_per_epoch = steps_per_epoch
+		self.num_epochs = 0
 		self.schedule = schedule
 		self.verbose = verbose
 
@@ -24,11 +26,14 @@ class BatchLRScheduler(callbacks.Callback):
 		if not hasattr(self.model.optimizer, 'lr'):
 			raise ValueError('Optimizer must have a "lr" attribute.')
 		lr = float(K.get_value(self.model.optimizer.lr))
-		lr = self.schedule(batch, lr)
+		lr = self.schedule(batch +self.steps_per_epoch * self.num_epochs, lr)
 		if not isinstance(lr, (float, np.float32, np.float64)):
 			raise ValueError('The output of the "schedule" function '
 							 'should be float.')
 		K.set_value(self.model.optimizer.lr, lr)
+
+	def on_epoch_begin(self, epoch, logs=None):
+		self.num_epochs = epoch
 
 	def on_epoch_end(self, epoch, logs=None):
 		logs = logs or {}

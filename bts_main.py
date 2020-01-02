@@ -110,7 +110,7 @@ def train(params):
 
 	start_lr = args.learning_rate
 	end_lr = args.end_learning_rate if args.end_learning_rate > 0 else start_lr * 0.1
-	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*((1 - min(step, total_steps)/total_steps)**0.9) +end_lr
+	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(1 - min(step, total_steps)/total_steps)**0.9 +end_lr
 
 	print("Total number of samples: {}".format(training_samples))
 	print("Total number of steps: {}".format(total_steps))
@@ -133,21 +133,20 @@ def train(params):
 												   fix_first_two=args.fix_first_conv_blocks, 
 												   pretrained_weights_path=args.pretrained_model,
 												   summary_writer=tensorboard_writer)
-	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-3)
+	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
 	loss = si_log_loss_wrapper(params.dataset)
 	model.compile(optimizer=opt, loss=loss)
 	model.summary()
 
 	# Load checkpoint if set
 	if args.checkpoint_path != '':
-		ckpt = tf.train.Checkpoint(model=model, optimizer=opt)
-		ckpt_manager = tf.train.CheckpointManager(ckpt, args.checkpoint_path)
-		if ckpt_manager.latest_checkpoint:
-			ckpt.restore(args.checkpoint_path).assert_consumed()
+		print('Loading checkpoint at {}'.format(args.checkpoint_path))
+		model = tf.keras.models.load_model(args.checkpoint_path)
+		print('Checkpoint successfully loaded')
 		if args.retrain:
 			initial_epoch = 0
 
-	model_callbacks = [BatchLRScheduler(poly_decay_fn, verbose=1),
+	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, verbose=1),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),

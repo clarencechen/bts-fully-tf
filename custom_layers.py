@@ -44,7 +44,7 @@ class LocalPlanarGuidance(layers.Conv2D):
 
 		plane_normal_unit, plane_dist = K.l2_normalize(plane[:, :, :, 0:3], axis=3), plane[:, :, :, 3:]
 		denominator = K.sum(self.pixel_dir_unit*plane_normal_unit, axis=3, keepdims=True)
-		return plane_dist / denominator # V2 Update (Normalize first)
+		return plane_dist / (denominator + K.epsilon()) # V2 Update (Normalize first)
 
 	def get_config(self):
 		base_config = super(LocalPlanarGuidance, self).get_config()

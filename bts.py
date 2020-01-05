@@ -39,49 +39,44 @@ def si_log_loss_wrapper(dataset):
 	assert dataset in gt_th
 	return si_log_loss
 
-def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None, summary_writer=None):
+def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
 
 	is_training = True if mode == 'train' else False
-	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size)
+	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size, name='input_image')
 
 	if params.encoder == 'densenet161_bts':
-		dense_features, skip_2, skip_4, skip_8, skip_16 = densenet_model(input_image, 
-																		 [6,12,36,24],
-																		 growth_rate=48,
-																		 init_nb_filter=96,
-																		 reduction=0.5,
-																		 is_training=is_training,
-																		 weights_path=pretrained_weights_path,
-																		 fix_first=fix_first,
-																		 fix_first_two=fix_first_two)
-		depth_est = decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, 
-																		  params.height, 
-																		  params.width, 
-																		  params.max_depth, 
-																		  num_filters=512, 
-																		  is_training=is_training)
+		densenet_outputs =  densenet_model(input_image, [6,12,36,24],
+							growth_rate=48,
+							init_nb_filter=96,
+							reduction=0.5,
+							is_training=is_training,
+							weights_path=pretrained_weights_path,
+							fix_first=fix_first,
+							fix_first_two=fix_first_two)
+		depth_est = decoder_model(densenet_outputs, 
+					params.height, 
+					params.width, 
+					params.max_depth, 
+					num_filters=512, 
+					is_training=is_training)
 	elif params.encoder == 'densenet121_bts':
-		dense_features, skip_2, skip_4, skip_8, skip_16 = densenet_model(input_image,
-																		 [6,12,24,16],
-																		 growth_rate=32,
-																		 init_nb_filter=64,
-																		 reduction=0.5,
-																		 is_training=is_training,
-																		 weights_path=pretrained_weights_path,
-																		 fix_first=fix_first,
-																		 fix_first_two=fix_first_two)
-		depth_est = decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, 
-																		  params.height, 
-																		  params.width,
-																		  params.max_depth, 
-		 																  num_filters=256, 
-																		  is_training=is_training)
+		densenet_outputs =  densenet_model(input_image, [6,12,24,16],
+							growth_rate=32,
+							init_nb_filter=64,
+							reduction=0.5,
+							is_training=is_training,
+							weights_path=pretrained_weights_path,
+							fix_first=fix_first,
+							fix_first_two=fix_first_two)
+		depth_est = decoder_model(densenet_outputs, 
+					params.height, 
+					params.width,
+					params.max_depth, 
+					num_filters=256, 
+					is_training=is_training)
 	else:
 		return None
 
-	# tf.summary.image('input_image', (input_image[:, :, :, ::-1] +K.epsilon()), max_outputs=4)
-	# tf.summary.image('depth_est', 1 / (depth_est +K.epsilon()), max_outputs=4)
-	# tf.summary.image('depth_est_cropped', 1 / (depth_est[:, 8:params.height -8, 8:params.width -8, :] +K.epsilon()), max_outputs=4)
 
 	model = Model(inputs=input_image, outputs=depth_est)
 	return model

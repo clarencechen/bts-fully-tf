@@ -7,12 +7,9 @@ from tensorflow.keras import layers
 
 from custom_layers import LocalPlanarGuidance
 
-def decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, full_height, full_width, max_depth, num_filters=256, is_training=False):
+def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filters=256, is_training=False):
 	batch_norm_params = {'momentum': 0.99, 'epsilon': 1.1e-5, 'fused': True}
-
-	def lpg_block(inputs, upratio):
-		depth = LocalPlanarGuidance(height=full_height, width=full_width, upratio=upratio)(inputs)
-		return depth
+	dense_features, skip_2, skip_4, skip_8, skip_16 = decoder_inputs
 
 	def conv_block_no_lpg(inputs, skips, num_filters):
 		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
@@ -64,21 +61,21 @@ def decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, full_height, 
 	daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
 	daspp_feat = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='daspp_feat tensor is invalid'))(daspp_feat)
 
-	depth_8x8_scaled = lpg_block(daspp_feat, upratio=8)
+	depth_8x8_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=8, name='depth_8x8_scaled')(daspp_feat)
 	depth_8x8_scaled_ds = layers.AveragePooling2D(pool_size=4)(depth_8x8_scaled) # Need to find non-trainable Downsampling Layer
 	depth_8x8_scaled_ds = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='depth_8x8_scaled_ds tensor is invalid'))(depth_8x8_scaled_ds)
 
 	num_filters = num_filters // 2
 	iconv3 = conv_block(daspp_feat, skip_4, depth_8x8_scaled_ds, num_filters) # H/4		
 
-	depth_4x4_scaled = lpg_block(iconv3, upratio=4)
+	depth_4x4_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=4, name='depth_4x4_scaled')(iconv3)
 	depth_4x4_scaled_ds = layers.AveragePooling2D(pool_size=2)(depth_4x4_scaled) # Need to find non-trainable Downsampling Layer
 	depth_4x4_scaled_ds = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='depth_4x4_scaled_ds tensor is invalid'))(depth_4x4_scaled_ds)
 
 	num_filters = num_filters // 2
 	iconv2 = conv_block(iconv3, skip_2, depth_4x4_scaled_ds, num_filters) # H/2
 
-	depth_2x2_scaled = lpg_block(iconv2, upratio=2)
+	depth_2x2_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=2, name='depth_2x2_scaled')(iconv2)
 
 	num_filters = num_filters // 2
 	upsample1 = layers.UpSampling2D(size=2, interpolation='nearest')(iconv2)
@@ -88,10 +85,6 @@ def decoder_model(dense_features, skip_2, skip_4, skip_8, skip_16, full_height, 
 	iconv1 = layers.Lambda(lambda t: tf.debugging.assert_all_finite(t, message='iconv1 tensor is invalid'))(iconv1)
 
 	depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid')(iconv1)
-	depth_est = layers.Lambda(lambda inputs: inputs * max_depth)(depth_est_scaled)
-
-	# tf.summary.image('depth_est_2x2_scaled', 1 / (depth_2x2_scaled + K.epsilon()), max_outputs=4)
-	# tf.summary.image('depth_est_4x4_scaled', 1 / (depth_4x4_scaled + K.epsilon()), max_outputs=4)
-	# tf.summary.image('depth_est_8x8_scaled', 1 / (depth_8x8_scaled + K.epsilon()), max_outputs=4)
+	depth_est = layers.Lambda(lambda inputs: inputs * max_depth, name='depth_est')(depth_est_scaled)
 
 	return depth_est

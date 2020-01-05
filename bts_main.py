@@ -38,7 +38,7 @@ from tensorflow.keras import callbacks
 
 from bts_dataloader import *
 from bts import si_log_loss_wrapper, bts_model
-from custom_callbacks import BatchLRScheduler
+from custom_callbacks import BatchLRScheduler, TensorboardPlusDepthImages
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -125,14 +125,12 @@ def train(params):
 							   do_kb_crop=args.do_kb_crop)
 	
 	tensorboard_log_dir = '{}/{}'.format(args.log_directory, args.model_name)
-	tensorboard_writer = tf.summary.create_file_writer(tensorboard_log_dir)
 	
 	model_save_dir = '{}/{}/model'.format(args.log_directory, args.model_name)
 	
 	model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 												   fix_first_two=args.fix_first_conv_blocks, 
-												   pretrained_weights_path=args.pretrained_model,
-												   summary_writer=tensorboard_writer)
+												   pretrained_weights_path=args.pretrained_model)
 	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
 	loss = si_log_loss_wrapper(params.dataset)
 	model.compile(optimizer=opt, loss=loss)

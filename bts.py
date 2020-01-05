@@ -27,6 +27,7 @@ from bts_densenet import densenet_model
 def si_log_loss_wrapper(dataset):
 	gt_th = {'nyu':0.1, 'kitti':1.0, 'matterport':0.1}
 
+	@tf.function()
 	def si_log_loss(y_true, y_pred):
 		mask = K.greater(y_true, gt_th[dataset])
 

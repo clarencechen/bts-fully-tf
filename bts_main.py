@@ -139,18 +139,24 @@ def train(params):
 	# Load checkpoint if set
 	if args.checkpoint_path != '':
 		print('Loading checkpoint at {}'.format(args.checkpoint_path))
-		model = tf.keras.models.load_model(args.checkpoint_path)
+		model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
+		model.compile(optimizer=opt, loss=loss)
 		print('Checkpoint successfully loaded')
 		if args.retrain:
 			initial_epoch = 0
+		else:
+			initial_epoch = 6
+	else:
+		initial_epoch = 0
 
-	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, verbose=1),
+	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),
 					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=500*params.batch_size)]
 
 	model.fit(x=dataloader.loader,
+			  initial_epoch=initial_epoch,
 			  epochs=params.num_epochs,
 			  verbose=1,
 			  callbacks=model_callbacks,

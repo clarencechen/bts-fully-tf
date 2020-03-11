@@ -133,27 +133,26 @@ def train(params):
 												   pretrained_weights_path=args.pretrained_model)
 	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
 	loss = si_log_loss_wrapper(params.dataset)
-	model.compile(optimizer=opt, loss=loss)
-	model.summary()
 
 	# Load checkpoint if set
 	if args.checkpoint_path != '':
 		print('Loading checkpoint at {}'.format(args.checkpoint_path))
 		model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
-		model.compile(optimizer=opt, loss=loss)
 		print('Checkpoint successfully loaded')
 		if args.retrain:
 			initial_epoch = 0
 		else:
-			initial_epoch = 6
+			initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
 	else:
 		initial_epoch = 0
 
+	model.compile(optimizer=opt, loss=loss)
+	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=500*params.batch_size)]
+					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
 
 	model.fit(x=dataloader.loader,
 			  initial_epoch=initial_epoch,

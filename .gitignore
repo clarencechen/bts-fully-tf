@@ -4,6 +4,10 @@
 # python cache files
 *.pyc
 
+# Floydhub-related files
+.floydexpt
+.floydignore
+floyd.yml
 
 custom_layer/build
 .idea

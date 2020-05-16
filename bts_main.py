@@ -31,7 +31,8 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'dataset, '
 										  'num_devices, '
 										  'num_threads, '
-										  'num_epochs, ')
+										  'num_epochs, '
+										  'use_tpu, ')
 
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.keras import callbacks
@@ -56,7 +57,8 @@ parser.add_argument('--encoder',                   type=str,   help='type of enc
 parser.add_argument('--dataset',                   type=str,   help='dataset to train on, kitti or nyu', default='kitti')
 parser.add_argument('--data_path',                 type=str,   help='path to the data', required=False)
 parser.add_argument('--gt_path',                   type=str,   help='path to the groundtruth data', required=False)
-parser.add_argument('--filenames_file',            type=str,   help='path to the filenames text file', required=False)
+parser.add_argument('--tfrecord_path',             type=str,   help='path to the combined TFRecord dataset in zip format', required=False)
+parser.add_argument('--filenames_file',            type=str,   help='path to the filenames text file', required=True)
 parser.add_argument('--input_height',              type=int,   help='input height', default=480)
 parser.add_argument('--input_width',               type=int,   help='input width',  default=640)
 parser.add_argument('--batch_size',                type=int,   help='batch size', default=4)
@@ -103,16 +105,19 @@ def get_num_lines(file_path):
 	return len(lines)
 
 def train(strategy, params):
+
 	# Define training constants derived from parameters
 	training_samples = get_num_lines(args.filenames_file)
-	steps_per_epoch = np.ceil(training_samples / params.batch_size).astype(np.int32)
+	if params.use_tpu:
+		steps_per_epoch = np.floor(training_samples / params.batch_size).astype(np.int32)
+	else:
+		steps_per_epoch = np.ceil(training_samples / params.batch_size).astype(np.int32)
 	total_steps = params.num_epochs * steps_per_epoch
-
 	print("Total number of samples: {}".format(training_samples))
 	print("Total number of steps: {}".format(total_steps))
 
-	tensorboard_log_dir = '{}/{}'.format(args.log_directory, args.model_name)
-	model_save_dir = '{}/{}/model'.format(args.log_directory, args.model_name)
+	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard')
+	model_save_dir = os.path.join(args.log_directory, args.model_name, 'checkpoints')
 
 	# Scale batch size and learning rate by number of distributed training cores
 	start_lr = args.learning_rate * strategy.num_replicas_in_sync
@@ -125,13 +130,17 @@ def train(strategy, params):
 		else:
 			print('Fixing first conv block')
 
-	dataloader = BtsDataloader(args.data_path,
-							   args.gt_path,
-							   args.filenames_file, params, args.mode,
-							   do_rotate=args.do_random_rotate,
-							   degree=args.degree,
-							   do_kb_crop=args.do_kb_crop)
-			
+	reader = BtsReader(params)
+	processor = BtsDataloader(params, do_rotate=args.do_random_rotate, degree=args.degree, do_kb_crop=args.do_kb_crop)
+
+	print(args.tfrecord_path)
+	if args.tfrecord_path is None or args.tfrecord_path == '':
+		loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, args.mode)
+	else:
+		loader = reader.read_from_tf_record(args.tfrecord_path, args.mode)
+
+	loader = processor.process_dataset(loader, args.mode)
+
 	with strategy.scope():
 		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 													   fix_first_two=args.fix_first_conv_blocks, 
@@ -143,30 +152,36 @@ def train(strategy, params):
 		initial_epoch = 0
 		if args.checkpoint_path != '':
 			print('Loading checkpoint at {}'.format(args.checkpoint_path))
-			model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
+			# model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
+			model.load_weights(args.checkpoint_path, by_name=False)
 			if not args.retrain:
-				initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
+				# initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
+				initial_epoch = 0
 			print('Checkpoint successfully loaded')
 
 		model.compile(optimizer=opt, loss=loss)
-	
+
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
 					   callbacks.TerminateOnNaN(),
-					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
+					   callbacks.TensorBoard(log_dir=tensorboard_log_dir, profile_batch='1,5'),
 					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
+					   callbacks.ModelCheckpoint(model_save_dir,
+							monitor='loss', mode='auto',
+							save_best_only=True, save_weights_only=True,
+							save_freq=1000*params.batch_size)]
 
-	model.fit(x=dataloader.loader,
+	model.fit(x=loader,
 			  initial_epoch=initial_epoch,
 			  epochs=params.num_epochs,
 			  verbose=1,
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save(model_save_dir, save_format='tf')
+	# model.save(model_save_dir, save_format='tf')
+	model.save_weights(model_save_dir, save_format='tf')
 
-	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
+	print('{} training finished at {}'.format(args.model_name, datetime.datetime.now()))
 
 
 def main():
@@ -185,23 +200,10 @@ def main():
 			strategy = tf.distribute.experimental.TPUStrategy(tpu)
 		else: # default strategy that works on CPU and single GPU
 			strategy = tf.distribute.get_strategy()
-		
-		model_filename = args.model_name + '.py'
-		command = 'mkdir {}/{}'.format(args.log_directory, args.model_name)
+
+		model_folder = os.path.join(args.log_directory, args.model_name)
+		command = 'mkdir {}'.format(model_folder)
 		os.system(command)
-
-		command = 'cp {} {}/{}/{}'.format(sys.argv[1], args.log_directory, args.model_name, sys.argv[1])
-		os.system(command)
-
-		if args.checkpoint_path == '':
-			command = 'cp bts.py {}/{}/{}'.format(args.log_directory, args.model_name, model_filename)
-			os.system(command)
-		else:
-			loaded_model_dir = os.path.dirname(args.checkpoint_path)
-			loaded_model_filename = os.path.basename(loaded_model_dir) + '.py'
-
-			command = 'cp {}/{} {}/{}/{}'.format(loaded_model_dir, loaded_model_filename, args.log_directory, args.model_name, model_filename)
-			os.system(command)
 
 		params = bts_parameters(
 			encoder=args.encoder,
@@ -210,9 +212,10 @@ def main():
 			batch_size=args.batch_size * strategy.num_replicas_in_sync,
 			dataset=args.dataset,
 			max_depth=args.max_depth,
-			num_devices=args.num_gpus,
+			num_devices=1 if tpu else args.num_gpus,
 			num_threads=args.num_threads,
-			num_epochs=args.num_epochs)
+			num_epochs=args.num_epochs,
+			use_tpu=False if tpu is None else True)
 
 		train(strategy, params)
 		

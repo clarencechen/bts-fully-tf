@@ -3,7 +3,6 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.python.eager import context
 from tensorflow.python.ops import summary_ops_v2
 
 from tensorflow.keras import backend as K
@@ -54,8 +53,7 @@ class TensorboardPlusDepthImages(callbacks.TensorBoard):
 		super(TensorboardPlusDepthImages, self).on_batch_end(batch, logs)
 		step = self._total_batches_seen
 		writer = self._get_writer(self._train_run_name)
-		with writer.as_default(), \
-			 summary_ops_v2.always_record_summaries():
+		with writer.as_default(), summary_ops_v2.always_record_summaries():
 			in_img = self.model.get_layer(name="input_image").output
 			d1 = self.model.get_layer(name="depth_est").output
 			d2_scaled = self.model.get_layer(name="depth_2x2_scaled").output

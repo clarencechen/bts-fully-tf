@@ -103,7 +103,6 @@ def get_num_lines(file_path):
 	return len(lines)
 
 def train(strategy, params):
-
 	# Define training constants derived from parameters
 	training_samples = get_num_lines(args.filenames_file)
 	steps_per_epoch = np.ceil(training_samples / params.batch_size).astype(np.int32)
@@ -132,7 +131,7 @@ def train(strategy, params):
 							   do_rotate=args.do_random_rotate,
 							   degree=args.degree,
 							   do_kb_crop=args.do_kb_crop)
-		
+			
 	with strategy.scope():
 		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 													   fix_first_two=args.fix_first_conv_blocks, 
@@ -150,12 +149,13 @@ def train(strategy, params):
 			print('Checkpoint successfully loaded')
 
 		model.compile(optimizer=opt, loss=loss)
-		model.summary()
-		model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
-						   callbacks.TerminateOnNaN(),
-						   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
-						   callbacks.ProgbarLogger(count_mode='steps'),
-						   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
+	
+	model.summary()
+	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
+					   callbacks.TerminateOnNaN(),
+					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
+					   callbacks.ProgbarLogger(count_mode='steps'),
+					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
 
 	model.fit(x=dataloader.loader,
 			  initial_epoch=initial_epoch,
@@ -171,6 +171,21 @@ def train(strategy, params):
 
 def main():
 	if args.mode == 'train':
+		# Find TPU cluster if available
+		try:
+			tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+			print('Running on TPU ', tpu.cluster_spec().as_dict()['worker'])
+		except ValueError:
+			tpu = None
+
+		# TPUStrategy for distributed training
+		if tpu:
+			tf.config.experimental_connect_to_cluster(tpu)
+			tf.tpu.experimental.initialize_tpu_system(tpu)
+			strategy = tf.distribute.experimental.TPUStrategy(tpu)
+		else: # default strategy that works on CPU and single GPU
+			strategy = tf.distribute.get_strategy()
+		
 		model_filename = args.model_name + '.py'
 		command = 'mkdir {}/{}'.format(args.log_directory, args.model_name)
 		os.system(command)
@@ -187,21 +202,6 @@ def main():
 
 			command = 'cp {}/{} {}/{}/{}'.format(loaded_model_dir, loaded_model_filename, args.log_directory, args.model_name, model_filename)
 			os.system(command)
-
-		# Find TPU cluster if available
-		try:
-			tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
-			print('Running on TPU ', tpu.cluster_spec().as_dict()['worker'])
-		except ValueError:
-			tpu = None
-
-		# TPUStrategy for distributed training
-		if tpu:
-			tf.config.experimental_connect_to_cluster(tpu)
-			tf.tpu.experimental.initialize_tpu_system(tpu)
-			strategy = tf.distribute.experimental.TPUStrategy(tpu)
-		else: # default strategy that works on CPU and single GPU
-			strategy = tf.distribute.get_strategy()
 
 		params = bts_parameters(
 			encoder=args.encoder,

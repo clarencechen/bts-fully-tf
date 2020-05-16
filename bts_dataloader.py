@@ -36,7 +36,7 @@ class BtsDataloader(object):
 
 		self.do_kb_crop = do_kb_crop
 
-		with open(filenames_file, 'r') as f:
+		with tf.io.gfile.GFile(filenames_file, 'r') as f:
 			filenames = f.readlines()
 
 		if mode == 'train':

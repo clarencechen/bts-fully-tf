@@ -40,8 +40,8 @@ class BtsDataloader(object):
 			filenames = f.readlines()
 
 		if mode == 'train':
-			assert not self.params.batch_size % self.params.num_gpus
-			mini_batch_size = int(self.params.batch_size / self.params.num_gpus)
+			assert not self.params.batch_size % self.params.num_devices
+			mini_batch_size = int(self.params.batch_size / self.params.num_devices)
 
 			self.loader = tf.data.Dataset.from_tensor_slices(filenames)
 			self.loader = self.loader.shuffle(len(filenames)).repeat()
@@ -123,10 +123,11 @@ class BtsDataloader(object):
 			depth_gt = depth_gt[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 			image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 
-		if self.do_rotate is True:
-			random_angle = tf.random.uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
-			image = tfa.image.rotate(image, random_angle, interpolation='BILINEAR')
-			depth_gt = tfa.image.rotate(depth_gt, random_angle, interpolation='NEAREST')
+		# Image rotation is not supported on TPU if using tfa.image.rotate()
+		# if self.do_rotate is True:
+		# 	random_angle = tf.random.uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
+		# 	image = tfa.image.rotate(image, random_angle, interpolation='BILINEAR')
+		# 	depth_gt = tfa.image.rotate(depth_gt, random_angle, interpolation='NEAREST')
 
 		print('Do random cropping from fixed size input')
 		image, depth_gt = self.random_crop_fixed_size(image, depth_gt)
@@ -143,14 +144,10 @@ class BtsDataloader(object):
 		do_augment = tf.random.uniform([], 0, 1)
 		image = tf.cond(do_augment > 0.5, lambda: self.augment_image(image), lambda: image)
 
-		# To use with model pretrained on ImageNet
-		# Switch RGB to BGR order and scale to range [0,255]
-		image = image[:, :, ::-1] * 255.0
-
 		image.set_shape([self.params.height, self.params.width, 3])
 		depth_gt.set_shape([self.params.height, self.params.width, 1])
 
-		image *= 255.0
+		image = image[:, :, ::-1] * 255.0
 		image = self.mean_image_subtraction(image, [123.68, 116.78, 103.94])
 
 		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':

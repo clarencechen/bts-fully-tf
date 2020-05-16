@@ -29,7 +29,7 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'max_depth, '
 										  'batch_size, '
 										  'dataset, '
-										  'num_gpus, '
+										  'num_devices, '
 										  'num_threads, '
 										  'num_epochs, ')
 
@@ -102,57 +102,60 @@ def get_num_lines(file_path):
 	f.close()
 	return len(lines)
 
-def train(params):
-	training_samples = get_num_lines(args.filenames_file)
+def train(strategy, params):
 
+	# Define training constants derived from parameters
+	training_samples = get_num_lines(args.filenames_file)
 	steps_per_epoch = np.ceil(training_samples / params.batch_size).astype(np.int32)
 	total_steps = params.num_epochs * steps_per_epoch
 
-	start_lr = args.learning_rate
-	end_lr = args.end_learning_rate if args.end_learning_rate > 0 else start_lr * 0.1
-	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(1 - min(step, total_steps)/total_steps)**0.9 +end_lr
-
 	print("Total number of samples: {}".format(training_samples))
 	print("Total number of steps: {}".format(total_steps))
+
+	tensorboard_log_dir = '{}/{}'.format(args.log_directory, args.model_name)
+	model_save_dir = '{}/{}/model'.format(args.log_directory, args.model_name)
+
+	# Scale batch size and learning rate by number of distributed training cores
+	start_lr = args.learning_rate * strategy.num_replicas_in_sync
+	end_lr = args.end_learning_rate * strategy.num_replicas_in_sync if args.end_learning_rate > 0 else start_lr * 0.1
+	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(1 - min(step, total_steps)/total_steps)**0.9 +end_lr
+
 	if args.fix_first_conv_blocks or args.fix_first_conv_block:
 		if args.fix_first_conv_blocks:
 			print('Fixing first two conv blocks')
 		else:
 			print('Fixing first conv block')
 
-	dataloader = BtsDataloader(args.data_path, args.gt_path, args.filenames_file, params, args.mode,
-							   do_rotate=args.do_random_rotate, degree=args.degree,
+	dataloader = BtsDataloader(args.data_path,
+							   args.gt_path,
+							   args.filenames_file, params, args.mode,
+							   do_rotate=args.do_random_rotate,
+							   degree=args.degree,
 							   do_kb_crop=args.do_kb_crop)
-	
-	tensorboard_log_dir = '{}/{}'.format(args.log_directory, args.model_name)
-	
-	model_save_dir = '{}/{}/model'.format(args.log_directory, args.model_name)
-	
-	model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
-												   fix_first_two=args.fix_first_conv_blocks, 
-												   pretrained_weights_path=args.pretrained_model)
-	opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
-	loss = si_log_loss_wrapper(params.dataset)
+		
+	with strategy.scope():
+		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
+													   fix_first_two=args.fix_first_conv_blocks, 
+													   pretrained_weights_path=args.pretrained_model)
+		opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
+		loss = si_log_loss_wrapper(params.dataset)
 
-	# Load checkpoint if set
-	if args.checkpoint_path != '':
-		print('Loading checkpoint at {}'.format(args.checkpoint_path))
-		model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
-		print('Checkpoint successfully loaded')
-		if args.retrain:
-			initial_epoch = 0
-		else:
-			initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
-	else:
+		# Load checkpoint if set
 		initial_epoch = 0
+		if args.checkpoint_path != '':
+			print('Loading checkpoint at {}'.format(args.checkpoint_path))
+			model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
+			if not args.retrain:
+				initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
+			print('Checkpoint successfully loaded')
 
-	model.compile(optimizer=opt, loss=loss)
-	model.summary()
-	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
-					   callbacks.TerminateOnNaN(),
-					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
-					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
+		model.compile(optimizer=opt, loss=loss)
+		model.summary()
+		model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
+						   callbacks.TerminateOnNaN(),
+						   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
+						   callbacks.ProgbarLogger(count_mode='steps'),
+						   callbacks.ModelCheckpoint(model_save_dir, monitor='loss', save_best_only=True, mode='auto', save_freq=1000*params.batch_size)]
 
 	model.fit(x=dataloader.loader,
 			  initial_epoch=initial_epoch,
@@ -162,22 +165,11 @@ def train(params):
 			  steps_per_epoch=steps_per_epoch)
 
 	model.save(model_save_dir, save_format='tf')
+
 	print('{} training finished at {}'.format(args.model_name), datetime.datetime.now())
 
 
 def main():
-	
-	params = bts_parameters(
-		encoder=args.encoder,
-		height=args.input_height,
-		width=args.input_width,
-		batch_size=args.batch_size,
-		dataset=args.dataset,
-		max_depth=args.max_depth,
-		num_gpus=args.num_gpus,
-		num_threads=args.num_threads,
-		num_epochs=args.num_epochs)
-
 	if args.mode == 'train':
 		model_filename = args.model_name + '.py'
 		command = 'mkdir {}/{}'.format(args.log_directory, args.model_name)
@@ -196,7 +188,33 @@ def main():
 			command = 'cp {}/{} {}/{}/{}'.format(loaded_model_dir, loaded_model_filename, args.log_directory, args.model_name, model_filename)
 			os.system(command)
 
-		train(params)
+		# Find TPU cluster if available
+		try:
+			tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+			print('Running on TPU ', tpu.cluster_spec().as_dict()['worker'])
+		except ValueError:
+			tpu = None
+
+		# TPUStrategy for distributed training
+		if tpu:
+			tf.config.experimental_connect_to_cluster(tpu)
+			tf.tpu.experimental.initialize_tpu_system(tpu)
+			strategy = tf.distribute.experimental.TPUStrategy(tpu)
+		else: # default strategy that works on CPU and single GPU
+			strategy = tf.distribute.get_strategy()
+
+		params = bts_parameters(
+			encoder=args.encoder,
+			height=args.input_height,
+			width=args.input_width,
+			batch_size=args.batch_size * strategy.num_replicas_in_sync,
+			dataset=args.dataset,
+			max_depth=args.max_depth,
+			num_devices=args.num_gpus,
+			num_threads=args.num_threads,
+			num_epochs=args.num_epochs)
+
+		train(strategy, params)
 		
 	elif args.mode == 'test':
 		print('This script does not support testing. Use bts_test.py instead.')

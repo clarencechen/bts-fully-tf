@@ -93,6 +93,12 @@ class BtsDataloader(object):
 		split_line = tf.strings.split([line]).values
 		image_path = tf.strings.join([self.data_path, split_line[0]])
 		depth_gt_path = tf.strings.join([self.gt_path[:-1], split_line[1]])
+		#paper V2 update does not require focal
+		#focal = tf.strings.to_number(split_line[2])
+		#with tf.io.gfile.GFile(image_path, 'r') as i, tf.io.gfile.GFile(depth_gt_path, 'r') as dm:
+		#	im_data, depth_data = im.read(), dm.read()
+		im_data, depth_data = tf.io.read_file(image_path), tf.io.read_file(depth_gt_path)
+		depth_gt = tf.image.decode_png(depth_data, channels=0, dtype=tf.uint16)
 
 		if self.params.dataset in ['nyu', 'matterport']:
 			image = tf.image.decode_jpeg(tf.io.read_file(image_path))

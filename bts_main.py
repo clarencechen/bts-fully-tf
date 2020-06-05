@@ -40,6 +40,7 @@ from tensorflow.keras import callbacks
 from bts_dataloader import *
 from bts import si_log_loss_wrapper, bts_model
 from custom_callbacks import BatchLRScheduler, TensorboardPlusDepthImages
+from adafactor import AdaFactor
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -144,7 +145,7 @@ def train(strategy, params):
 		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 													   fix_first_two=args.fix_first_conv_blocks, 
 													   pretrained_weights_path=args.pretrained_model)
-		opt = tf.keras.optimizers.AdaFactorV2(lr=start_lr)
+		opt = AdaFactor(lr=start_lr)
 		loss = si_log_loss_wrapper(params.dataset)
 
 		# Load checkpoint if set

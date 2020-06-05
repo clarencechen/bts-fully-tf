@@ -25,8 +25,9 @@ class AdaFactorBase(keras.optimizers.Optimizer):
 	def __init__(
 			self,
 			lr=1e-3,  # may be None
-			beta1=0.0,
+			beta1=0.9,
 			beta2=None,
+			epsilon=1e-7,
 			epsilon1=1e-30,
 			epsilon2=1e-3,
 			multiply_by_parameter_scale=True,
@@ -37,8 +38,11 @@ class AdaFactorBase(keras.optimizers.Optimizer):
 		self._lr = lr
 		if self._lr is not None:
 			self._lr_tensor = K.variable(self._lr, name='lr')
+		else:
+			self._lr_tensor = K.variable(0.01, name='lr')
 		self.beta1 = beta1
 		self._beta2 = beta2
+		self.epsilon = epsilon
 		self.epsilon1 = epsilon1
 		self.epsilon2 = epsilon2
 		self.multiply_by_parameter_scale = multiply_by_parameter_scale
@@ -51,9 +55,9 @@ class AdaFactorBase(keras.optimizers.Optimizer):
 			iterations = K.cast(self.iterations + 1, K.floatx())
 			lr_value = K.minimum(1.0 / K.sqrt(iterations), 0.01)
 			if self.multiply_by_parameter_scale:
-				self._lr_tensor = lr_value
+				K.update(self._lr_tensor, lr_value)
 			else:
-				self._lr_tensor = lr_value * 0.05
+				K.update(self._lr_tensor, lr_value * 0.05)
 		return self._lr_tensor
 
 	@property
@@ -81,6 +85,7 @@ class AdaFactorBase(keras.optimizers.Optimizer):
 			'lr': self._lr,
 			'beta1': self.beta1,
 			'beta2': self._beta2,
+			'epsilon': self.epsilon,
 			'epsilon1': self.epsilon1,
 			'epsilon2': self.epsilon2,
 			'multiply_by_parameter_scale': self.multiply_by_parameter_scale,
@@ -134,7 +139,7 @@ class AdaFactorV2(AdaFactorBase):
 			# Compose full v matrix
 			v_t = vr_t * vc_t / K.mean(vr_t, axis=axis2, keepdims=True)
 		# Define main update
-		u = grad / K.sqrt(v_t)
+		u = grad / K.sqrt(v_t + self.epsilon)
 		# Define clipping
 		if self.clipping_threshold is not None:
 			u_rms = K.mean(K.sum(K.square(u)))

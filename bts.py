@@ -40,7 +40,7 @@ def si_log_loss_wrapper(dataset):
 	assert dataset in gt_th
 	return si_log_loss
 
-def bts_model(params, mode, start_lr, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
+def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
 
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size, name='input_image')

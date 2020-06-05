@@ -142,10 +142,10 @@ def train(strategy, params):
 	loader = processor.process_dataset(loader, args.mode)
 
 	with strategy.scope():
-		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
-													   fix_first_two=args.fix_first_conv_blocks, 
-													   pretrained_weights_path=args.pretrained_model)
-		opt = AdaFactor(lr=start_lr)
+		model = bts_model(params, args.mode, fix_first=args.fix_first_conv_block, 
+											 fix_first_two=args.fix_first_conv_blocks, 
+											 pretrained_weights_path=args.pretrained_model)
+		opt = AdaFactor(lr=start_lr, epsilon=1e-8)
 		loss = si_log_loss_wrapper(params.dataset)
 
 		# Load checkpoint if set
@@ -164,7 +164,7 @@ def train(strategy, params):
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
 					   callbacks.TerminateOnNaN(),
-					   callbacks.TensorBoard(log_dir=tensorboard_log_dir, profile_batch='1,5'),
+					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),
 					   callbacks.ModelCheckpoint(model_save_dir,
 							monitor='loss', mode='auto',

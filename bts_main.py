@@ -133,7 +133,6 @@ def train(strategy, params):
 	reader = BtsReader(params)
 	processor = BtsDataloader(params, do_rotate=args.do_random_rotate, degree=args.degree, do_kb_crop=args.do_kb_crop)
 
-	print(args.tfrecord_path)
 	if args.tfrecord_path is None or args.tfrecord_path == '':
 		loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, args.mode)
 	else:
@@ -145,7 +144,7 @@ def train(strategy, params):
 		model = bts_model(params, args.mode, start_lr, fix_first=args.fix_first_conv_block, 
 													   fix_first_two=args.fix_first_conv_blocks, 
 													   pretrained_weights_path=args.pretrained_model)
-		opt = tf.keras.optimizers.Adam(lr=start_lr, epsilon=1e-8)
+		opt = tf.keras.optimizers.AdaFactorV2(lr=start_lr)
 		loss = si_log_loss_wrapper(params.dataset)
 
 		# Load checkpoint if set

@@ -145,14 +145,15 @@ def train(strategy, params):
 			model.load_weights(checkpoint_file, by_name=False)
 			if not args.retrain:
 				# initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
-				initial_epoch = 4
+				initial_epoch = 0
 			print('Checkpoint successfully loaded')
 
 		model.compile(optimizer=opt, loss=loss)
 
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
-					   TensorboardPlusDepthImages(params.height, params.width, params.max_depth, log_dir=tensorboard_log_dir),
+					   TensorboardPlusDepthImages(params.height, params.width, params.max_depth,
+							log_dir=tensorboard_log_dir, profile_batch=0),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.ProgbarLogger(count_mode='steps'),
 					   callbacks.ModelCheckpoint(model_save_dir,

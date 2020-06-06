@@ -34,10 +34,12 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'num_epochs, '
 										  'use_tpu, ')
 
+import numpy as np
+import tensorflow as tf
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.keras import callbacks
 
-from bts_dataloader import *
+from bts_dataloader import BtsReader, BtsDataloader
 from bts import si_log_loss_wrapper, bts_model
 from custom_callbacks import BatchLRScheduler, TensorboardPlusDepthImages
 from adafactor import AdaFactor
@@ -85,20 +87,6 @@ if sys.argv.__len__() == 2:
 else:
 	args = parser.parse_args()
 
-if args.mode == 'train' and not args.checkpoint_path:
-	from bts import *
-
-elif args.mode == 'train' and args.checkpoint_path:
-	model_dir = os.path.dirname(args.checkpoint_path)
-	model_name = os.path.basename(model_dir)
-	import sys
-	sys.path.append(model_dir)
-	for key, val in vars(__import__(model_name)).items():
-		if key.startswith('__') and key.endswith('__'):
-			continue
-		vars()[key] = val
-
-
 def get_num_lines(file_path):
 	f = open(file_path, 'r')
 	lines = f.readlines()
@@ -118,7 +106,7 @@ def train(strategy, params):
 	print("Total number of steps: {}".format(total_steps))
 
 	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard')
-	model_save_dir = os.path.join(args.log_directory, args.model_name, 'checkpoints')
+	model_save_dir = os.path.join(args.log_directory, args.model_name, 'checkpoint')
 
 	# Scale batch size and learning rate by number of distributed training cores
 	start_lr = args.learning_rate * strategy.num_replicas_in_sync
@@ -151,12 +139,13 @@ def train(strategy, params):
 		# Load checkpoint if set
 		initial_epoch = 0
 		if args.checkpoint_path != '':
-			print('Loading checkpoint at {}'.format(args.checkpoint_path))
-			# model = tf.keras.models.load_model(args.checkpoint_path, custom_objects={'si_log_loss': loss}, compile=False)
-			model.load_weights(args.checkpoint_path, by_name=False)
+			checkpoint_file = os.path.join(args.checkpoint_path, 'checkpoint')
+			print('Loading checkpoint at {}'.format(checkpoint_file))
+			# model = tf.keras.models.load_model(checkpoint_file, custom_objects={'si_log_loss': loss}, compile=False)
+			model.load_weights(checkpoint_file, by_name=False)
 			if not args.retrain:
 				# initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
-				initial_epoch = 0
+				initial_epoch = 4
 			print('Checkpoint successfully loaded')
 
 		model.compile(optimizer=opt, loss=loss)

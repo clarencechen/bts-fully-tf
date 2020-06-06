@@ -61,13 +61,13 @@ def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filter
 	daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
 
 	depth_8x8_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=8, name='depth_8x8_scaled')(daspp_feat)
-	depth_8x8_scaled_ds = layers.AveragePooling2D(pool_size=4)(depth_8x8_scaled) # Need to find non-trainable Downsampling Layer
+	depth_8x8_scaled_ds = layers.Lambda(lambda x : x[:, ::4, ::4, ...])(depth_8x8_scaled) # Downsampling Layer
 
 	num_filters = num_filters // 2
 	iconv3 = conv_block(daspp_feat, skip_4, depth_8x8_scaled_ds, num_filters) # H/4		
 
 	depth_4x4_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=4, name='depth_4x4_scaled')(iconv3)
-	depth_4x4_scaled_ds = layers.AveragePooling2D(pool_size=2)(depth_4x4_scaled) # Need to find non-trainable Downsampling Layer
+	depth_4x4_scaled_ds = layers.Lambda(lambda x : x[:, ::2, ::2, ...])(depth_4x4_scaled) # Downsampling Layer
 
 	num_filters = num_filters // 2
 	iconv2 = conv_block(iconv3, skip_2, depth_4x4_scaled_ds, num_filters) # H/2

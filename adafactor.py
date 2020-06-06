@@ -139,7 +139,7 @@ class AdaFactorV2(AdaFactorBase):
 			# Compose full v matrix
 			v_t = vr_t * vc_t / K.mean(vr_t, axis=axis2, keepdims=True)
 		# Define main update
-		u = grad / K.sqrt(v_t + self.epsilon)
+		u = grad / (K.sqrt(v_t + self.epsilon) +K.epsilon())
 		# Define clipping
 		if self.clipping_threshold is not None:
 			u_rms = K.mean(K.sum(K.square(u)))

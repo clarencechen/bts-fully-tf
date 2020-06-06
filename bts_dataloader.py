@@ -131,8 +131,8 @@ class BtsDataloader(object):
 		# Image rotation is not supported on TPU if using tfa.image.rotate()
 		if not self.params.use_tpu and self.do_rotate is True:
 			random_angle = tf.random.uniform([], - self.degree * 3.141592 / 180, self.degree * 3.141592 / 180)
-			rot_image = tfa.image.rotate(sample[:, :, 0:3], random_angle, interpolation='BILINEAR')
-			rot_gt_depth = tfa.image.rotate(sample[:, :, 3:4], random_angle, interpolation='NEAREST')
+			rot_image = tfa.image.rotate(sample[..., 0:3], random_angle, interpolation='BILINEAR')
+			rot_gt_depth = tfa.image.rotate(sample[..., 3:4], random_angle, interpolation='NEAREST')
 			sample = tf.concat([rot_image, rot_gt_depth], axis=2)
 
 		# Random cropping
@@ -144,7 +144,7 @@ class BtsDataloader(object):
 		# Random flipping
 		batch = tf.image.random_flip_left_right(batch)
 
-		image_batch, depth_gt_batch = batch[:, :, :, 0:3], batch[:, :, :, 3:4]
+		image_batch, depth_gt_batch = batch[..., 0:3], batch[..., 3:4]
 
 		# Random gamma, brightness, color augmentation
 		gamma = tf.random.uniform([self.mini_batch_size, 1, 1, 1], 0.9, 1.1)
@@ -157,7 +157,7 @@ class BtsDataloader(object):
 		image_batch.set_shape([self.mini_batch_size, self.params.height, self.params.width, 3])
 		depth_gt_batch.set_shape([self.mini_batch_size, self.params.height, self.params.width, 1])
 
-		image_batch = image_batch[:, :, :, ::-1] * 255.0 - self.image_mean
+		image_batch = image_batch[..., ::-1] * 255.0 - self.image_mean
 
 		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
 			image_batch *= 0.017
@@ -171,7 +171,7 @@ class BtsDataloader(object):
 			loader = loader.map(self.dataset_crop_train, num_parallel_calls=num_data_workers)
 			loader = loader.batch(self.mini_batch_size, drop_remainder=self.params.use_tpu)
 			loader = loader.map(self.train_preprocess, num_parallel_calls=num_data_workers)
-			loader = loader.prefetch(tf.data.experimental.AUTOTUNE if self.params.use_tpu else mini_batch_size)
+			loader = loader.prefetch(tf.data.experimental.AUTOTUNE)
 		else:
 			if self.do_kb_crop is True:
 				loader = loader.map(self.dataset_crop_test)

@@ -163,13 +163,12 @@ def train(strategy, params):
 
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
+					   TensorboardPlusDepthImages(params.height, params.width, params.max_depth, log_dir=tensorboard_log_dir),
 					   callbacks.TerminateOnNaN(),
-					   callbacks.TensorBoard(log_dir=tensorboard_log_dir),
 					   callbacks.ProgbarLogger(count_mode='steps'),
 					   callbacks.ModelCheckpoint(model_save_dir,
-							monitor='loss', mode='auto',
-							save_best_only=True, save_weights_only=True,
-							save_freq=1000*params.batch_size)]
+							monitor='loss', mode='auto', verbose=1,
+							save_best_only=True, save_weights_only=True)]
 
 	model.fit(x=loader,
 			  initial_epoch=initial_epoch,

@@ -21,7 +21,7 @@ class BatchLRScheduler(callbacks.Callback):
 
 	def __init__(self, schedule, steps_per_epoch, initial_epoch=0, verbose=0):
 		super(BatchLRScheduler, self).__init__()
-		self.global_step = steps_per_epoch * initial_epoch
+		self.global_step = float(steps_per_epoch * initial_epoch)
 		self.schedule = schedule
 		self.verbose = verbose
 

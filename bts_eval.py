@@ -102,228 +102,66 @@ def get_num_lines(file_path):
 
 
 def test(params):
-    global gt_depths, is_missing, missing_ids
-    gt_depths = []
-    is_missing = []
-    missing_ids = set()
+	global gt_depths, is_missing, missing_ids
+	gt_depths = []
+	is_missing = []
+	missing_ids = set()
 
-    write_summary = False
+	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
+	tensorboard_log_dir = os.path.join(args.output_directory, args.model_name, 'tensorboard')
 
-    if os.path.exists(args.checkpoint_path + '.meta'):
-        steps = [str(args.checkpoint_path).split('/')[-1].split('-')[-1]]
-    else:
-        with open(args.checkpoint_path + '/checkpoint') as file:
-            lines = file.readlines()[1:]
+	reader = BtsReader(params)
+	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)
 
-        steps = set()
-        for line in lines:
-            step = line.split()[1].split('/')[-1].split('-')[-1].replace('\"', '')
-            steps.add('{:06d}'.format(int(step)))
-    
-        lines = []
-        if os.path.exists(args.checkpoint_path + '/evaluated_checkpoints'):
-            with open(args.checkpoint_path + '/evaluated_checkpoints') as file:
-                lines = file.readlines()
-    
-        for line in lines:
-            if line.rstrip() in steps:
-                steps.remove(line.rstrip())
-    
-        steps = sorted(steps)
-        if args.output_directory != '':
-            summary_path = os.path.join(args.output_directory, args.model_name)
-        else:
-            summary_path = os.path.join(args.checkpoint_path, 'eval')
-        write_summary = True
+	if args.tfrecord_path is None or args.tfrecord_path == '':
+		loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, 'test')
+	else:
+		loader = reader.read_from_tf_record(args.tfrecord_path, 'test')
 
-    if len(steps) == 0:
-        print('No new model to evaluate. Abort.')
-        return
+	loader = processor.process_dataset(loader, 'test')
 
-    time_modified = os.path.getmtime(args.checkpoint_path + 'checkpoint')
-    time_diff = time.time() - time_modified
-    if time_diff < 60:
-        print('Model file might not be mature due to short time_diff: %s' % str(time_diff))
-        print('Aborting')
-        return
-    else:
-        print('time_diff: %s' % str(time_diff))
+	model = bts_model(params, 'test')
+	model.compile(optimizer='adam', metrics=metrics_list_factory(args))
+	# Load checkpoint if set
+	print('Loading checkpoint at {}'.format(checkpoint_file))
+	model.load_weights(checkpoint_file, by_name=False).expect_partial()
+	print('Checkpoint successfully loaded')
 
-    dataloader = BtsDataloader(args.data_path, args.gt_path, args.filenames_file, params, 'test',
-                               do_kb_crop=args.do_kb_crop)
+	model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
+					   callbacks.ProgbarLogger(count_mode='steps')]
 
-    dataloader_iter = dataloader.loader.make_initializable_iterator()
-    iter_init_op = dataloader_iter.initializer
-    image, focal = dataloader_iter.get_next()
+	model.summary()
 
-    model = BtsModel(params, 'test', image, None, focal=focal, bn_training=False)
+	with tf.device('/cpu:0'):
+		num_test_samples = get_num_lines(args.filenames_file)
+		with open(args.filenames_file) as f:
+			lines = f.readlines()
+		print('Now testing {} images.'.format(num_test_samples))
 
-    if write_summary:
-        summary_writer = tf.summary.FileWriter(summary_path)
-
-    # SESSION
-    config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
-    sess = tf.compat.v1.Session(config=config)
-
-    # INIT
-    sess.run(tf.compat.v1.global_variables_initializer())
-    sess.run(tf.compat.v1.local_variables_initializer())
-    coordinator = tf.train.Coordinator()
-    threads = tf.compat.v1.train.start_queue_runners(sess=sess, coord=coordinator)
-
-    # SAVER
-    train_saver = tf.compat.v1.train.Saver()
-    
-    with tf.device('/cpu:0'):
-        for step in steps:
-            
-            if os.path.exists(args.checkpoint_path + '.meta'):
-                restore_path = args.checkpoint_path
-            else:
-                restore_path = os.path.join(args.checkpoint_path, 'model-' + str(int(step)))
-
-            # RESTORE
-            train_saver.restore(sess, restore_path)
-        
-            num_test_samples = get_num_lines(args.filenames_file)
-
-            with open(args.filenames_file) as f:
-                lines = f.readlines()
-
-            print('now testing {} files for step {}'.format(num_test_samples, step))
-            sess.run(iter_init_op)
-
-            pred_depths = []
-            
-            start_time = time.time()
-            for s in range(num_test_samples):
-                depth = sess.run([model.depth_est])
-                pred_depths.append(depth[0].squeeze())
-
-            elapsed_time = time.time() - start_time
-            print('Elapesed time: %s' % str(elapsed_time))
-            print('Done.')
-
-            if len(gt_depths) == 0:
-                for t_id in range(num_test_samples):
-                    gt_depth_path = os.path.join(args.gt_path, lines[t_id].split()[1])
-                    depth = cv2.imread(gt_depth_path, -1)
-                    if depth is None:
-                        print('Missing: %s ' % gt_depth_path)
-                        missing_ids.add(t_id)
-                        continue
-
-                    if args.dataset == 'nyu':
-                        depth = depth.astype(np.float32) / 1000.0
-                    else:
-                        depth = depth.astype(np.float32) / 256.0
-
-                    gt_depths.append(depth)
-
-            print('Computing errors')
-            silog, log10, abs_rel, sq_rel, rms, log_rms, d1, d2, d3 = eval(pred_depths, int(step))
-            
-            if write_summary:
-                summary = tf.Summary()
-                summary.value.add(tag='silog', simple_value=silog.mean())
-                summary.value.add(tag='abs_rel', simple_value=abs_rel.mean())
-                summary.value.add(tag='log10', simple_value=log10.mean())
-                summary.value.add(tag='sq_rel', simple_value=sq_rel.mean())
-                summary.value.add(tag='rms', simple_value=rms.mean())
-                summary.value.add(tag='log_rms', simple_value=log_rms.mean())
-                summary.value.add(tag='d1', simple_value=d1.mean())
-                summary.value.add(tag='d2', simple_value=d2.mean())
-                summary.value.add(tag='d3', simple_value=d3.mean())
-                
-                summary_writer.add_summary(summary, global_step=step)
-                summary_writer.flush()
-                
-                with open(os.path.dirname(args.checkpoint_path) + '/evaluated_checkpoints', 'a') as file:
-                        file.write(step + '\n')
-            
-            print('Evaluation done')
+		start_time = time.time()
+		metrics = model.evaluate(loader, verbose=1, callbacks=model_callbacks)
+		elapsed_time = time.time() - start_time
+		print('Evaluation finished. Elapsed time: {}'.format(str(elapsed_time)))
+		print("{:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}".format('silog', 'abs_rel', 'log10', 'rms', 'sq_rel', 'log_rms', 'd1', 'd2', 'd3'))
+		print("{0[0]:7.4f}, {0[1]:7.4f}, {0[2]:7.3f}, {0[3]:7.3f}, {0[4]:7.3f}, {0[5]:7.3f}, {0[6]:7.3f}, {0[7]:7.3f}, {0[8]:7.3f}".format(metrics))
 
 
-def eval(pred_depths, step):
+def main():
+	
+	params = bts_parameters(
+		encoder=args.encoder,
+		height=args.input_height,
+		width=args.input_width,
+		batch_size=1,
+		dataset=args.dataset,
+		max_depth=args.max_depth,
+		num_devices=1,
+		num_threads=args.num_threads,
+		num_epochs=None,
+		use_tpu=False)
 
-    num_samples = get_num_lines(args.filenames_file)
-    pred_depths_valid = []
-
-    for t_id in range(num_samples):
-        if t_id in missing_ids:
-            continue
-
-        pred_depths_valid.append(pred_depths[t_id])
-
-    num_samples = num_samples - len(missing_ids)
-
-    silog = np.zeros(num_samples, np.float32)
-    log10 = np.zeros(num_samples, np.float32)
-    rms = np.zeros(num_samples, np.float32)
-    log_rms = np.zeros(num_samples, np.float32)
-    abs_rel = np.zeros(num_samples, np.float32)
-    sq_rel = np.zeros(num_samples, np.float32)
-    d1 = np.zeros(num_samples, np.float32)
-    d2 = np.zeros(num_samples, np.float32)
-    d3 = np.zeros(num_samples, np.float32)
-    
-    for i in range(num_samples):
-
-        gt_depth = gt_depths[i]
-        pred_depth = pred_depths_valid[i]
-
-        if args.do_kb_crop:
-            height, width = gt_depth.shape
-            top_margin = int(height - 352)
-            left_margin = int((width - 1216) / 2)
-            pred_depth_uncropped = np.zeros((height, width), dtype=np.float32)
-            pred_depth_uncropped[top_margin:top_margin + 352, left_margin:left_margin + 1216] = pred_depth
-            pred_depth = pred_depth_uncropped
-
-        pred_depth[pred_depth < args.min_depth_eval] = args.min_depth_eval
-        pred_depth[pred_depth > args.max_depth_eval] = args.max_depth_eval
-        pred_depth[np.isinf(pred_depth)] = args.max_depth_eval
-
-        valid_mask = np.logical_and(gt_depth > args.min_depth_eval, gt_depth < args.max_depth_eval)
-
-        if args.garg_crop or args.eigen_crop:
-            gt_height, gt_width = gt_depth.shape
-            eval_mask = np.zeros(valid_mask.shape)
-
-            if args.garg_crop:
-                eval_mask[int(0.40810811 * gt_height):int(0.99189189 * gt_height), int(0.03594771 * gt_width):int(0.96405229 * gt_width)] = 1
-
-            elif args.eigen_crop:
-                if args.dataset == 'kitti':
-                    eval_mask[int(0.3324324 * gt_height):int(0.91351351 * gt_height), int(0.0359477 * gt_width):int(0.96405229 * gt_width)] = 1
-                else:
-                    eval_mask[45:471, 41:601] = 1
-
-            valid_mask = np.logical_and(valid_mask, eval_mask)
-
-        silog[i], log10[i], abs_rel[i], sq_rel[i], rms[i], log_rms[i], d1[i], d2[i], d3[i] = compute_errors(gt_depth[valid_mask], pred_depth[valid_mask])
-
-    print("{:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}".format('silog', 'abs_rel', 'log10', 'rms', 'sq_rel', 'log_rms', 'd1', 'd2', 'd3'))
-    print("{:7.4f}, {:7.4f}, {:7.3f}, {:7.3f}, {:7.3f}, {:7.3f}, {:7.3f}, {:7.3f}, {:7.3f}".format(
-        silog.mean(), abs_rel.mean(), log10.mean(), rms.mean(), sq_rel.mean(), log_rms.mean(), d1.mean(), d2.mean(), d3.mean()))
-    
-    return silog, log10, abs_rel, sq_rel, rms, log_rms, d1, d2, d3
-
-
-def main(_):
-    
-    params = bts_parameters(
-        encoder=args.encoder,
-        height=args.input_height,
-        width=args.input_width,
-        batch_size=None,
-        dataset=args.dataset,
-        max_depth=args.max_depth,
-        num_gpus=None,
-        num_threads=None,
-        num_epochs=None)
-
-    test(params)
+	test(params)
+>>>>>>> daf7cac... load_weights also includes optimizer iterations
 
 
 if __name__ == '__main__':

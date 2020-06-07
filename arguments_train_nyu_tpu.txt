@@ -6,13 +6,14 @@
 --filenames_file ./train_test_inputs/nyudepthv2_train_files_with_gt.txt
 --batch_size 4
 --num_epochs 50
---learning_rate 1e-4
+--learning_rate 1e-3
 --num_threads 8
 --input_height 416
 --input_width 544
 --max_depth 10
 --do_random_rotate
 --degree 7.5
+--checkpoint_path gs://bts-tf2-model/bts_nyu_test/
 --log_directory gs://bts-tf2-model/
 --pretrained_model ./models/densenet161_imagenet/weights.h5
 --fix_first_conv_blocks

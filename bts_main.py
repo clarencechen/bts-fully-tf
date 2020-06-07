@@ -136,20 +136,17 @@ def train(strategy, params):
 		wd_dict = get_weight_decays(model)
 		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=1e-6)
 		loss = si_log_loss_wrapper(params.dataset)
+		model.compile(optimizer=opt, loss=loss)
 
 		# Load checkpoint if set
 		initial_epoch = 0
 		if args.checkpoint_path != '':
 			checkpoint_file = os.path.join(args.checkpoint_path, 'checkpoint')
 			print('Loading checkpoint at {}'.format(checkpoint_file))
-			# model = tf.keras.models.load_model(checkpoint_file, custom_objects={'si_log_loss': loss}, compile=False)
 			model.load_weights(checkpoint_file, by_name=False)
 			if not args.retrain:
-				# initial_epoch = (model.optmizer.iterations.value) // steps_per_epoch
-				initial_epoch = 0
+				initial_epoch = model.optimizer.iterations.value() // steps_per_epoch
 			print('Checkpoint successfully loaded')
-
-		model.compile(optimizer=opt, loss=loss)
 
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),

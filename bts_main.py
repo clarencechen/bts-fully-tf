@@ -42,7 +42,7 @@ from tensorflow.keras import callbacks
 from bts_dataloader import BtsReader, BtsDataloader
 from bts import si_log_loss_wrapper, bts_model
 from custom_callbacks import BatchLRScheduler, TensorboardPlusDepthImages
-from adafactor import AdaFactor
+from custom_optimizers import get_weight_decays, AdamW
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -133,7 +133,8 @@ def train(strategy, params):
 		model = bts_model(params, args.mode, fix_first=args.fix_first_conv_block, 
 											 fix_first_two=args.fix_first_conv_blocks, 
 											 pretrained_weights_path=args.pretrained_model)
-		opt = AdaFactor(lr=start_lr, epsilon=1e-8)
+		wd_dict = get_weight_decays(model)
+		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=1e-6)
 		loss = si_log_loss_wrapper(params.dataset)
 
 		# Load checkpoint if set

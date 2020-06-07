@@ -7,7 +7,7 @@ from tensorflow.keras import backend as K
 from tensorflow.keras import layers, regularizers
 from custom_layers import Scale
 
-def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-4, is_training=False, weights_path=None, fix_first=False, fix_first_two=False):
+def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-3, is_training=False, weights_path=None, fix_first=False, fix_first_two=False):
 	'''Instantiate the DenseNet architecture,
 	# Arguments
 		nb_layers: number of layers to add for each dense block

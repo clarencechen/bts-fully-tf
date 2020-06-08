@@ -62,15 +62,15 @@ class TensorboardPlusDepthImages(callbacks.TensorBoard):
 			d8_layer = self.model.get_layer(name="depth_8x8_scaled")
 
 			with ops.init_scope():
-				in_img = K.get_value(in_layer.output)
-				d1 = K.get_value(d1_layer.output)
-				d2_scaled = K.get_value(d2_layer.output)
-				d4_scaled = K.get_value(d4_layer.output)
-				d8_scaled = K.get_value(d8_layer.output)
+				# in_img = K.get_value(in_layer.weights)
+				# d1 = K.get_value(d1_layer.weights[0])
+				d2_scaled = K.get_value(d2_layer.weights[0])
+				d4_scaled = K.get_value(d4_layer.weights[0])
+				d8_scaled = K.get_value(d8_layer.weights[0])
 
-			summary_ops_v2.image('input_image', in_img[:, :, :, ::-1], step=epoch)
-			summary_ops_v2.image('depth_est', 1 / (d1 +K.epsilon()), step=epoch)
-			summary_ops_v2.image('depth_est_cropped', 1 / (d1[:, 8:self.image_height -8, 8:self.image_width -8, :] +K.epsilon()), step=epoch)
+			# summary_ops_v2.image('input_image', in_img[:, :, :, ::-1], step=epoch)
+			# summary_ops_v2.image('depth_est', 1 / (d1 +K.epsilon()), step=epoch)
+			# summary_ops_v2.image('depth_est_cropped', 1 / (d1[:, 8:self.image_height -8, 8:self.image_width -8, :] +K.epsilon()), step=epoch)
 			summary_ops_v2.image('depth_est_2x2', 1 / (d2_scaled * self.est_max_depth + K.epsilon()), step=epoch)
 			summary_ops_v2.image('depth_est_4x4', 1 / (d4_scaled * self.est_max_depth + K.epsilon()), step=epoch)
 			summary_ops_v2.image('depth_est_8x8', 1 / (d8_scaled * self.est_max_depth + K.epsilon()), step=epoch)

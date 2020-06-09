@@ -57,6 +57,7 @@ parser.convert_arg_line_to_args = convert_arg_line_to_args
 parser.add_argument('--mode',                      type=str,   help='train or test', default='train')
 parser.add_argument('--model_name',                type=str,   help='model name', default='bts_eigen')
 parser.add_argument('--encoder',                   type=str,   help='type of encoder, desenet121_bts or densenet161_bts', default='densenet161_bts')
+
 parser.add_argument('--dataset',                   type=str,   help='dataset to train on, kitti or nyu', default='kitti')
 parser.add_argument('--data_path',                 type=str,   help='path to the data', required=False)
 parser.add_argument('--gt_path',                   type=str,   help='path to the groundtruth data', required=False)
@@ -64,22 +65,27 @@ parser.add_argument('--tfrecord_path',             type=str,   help='path to the
 parser.add_argument('--filenames_file',            type=str,   help='path to the filenames text file', required=True)
 parser.add_argument('--input_height',              type=int,   help='input height', default=480)
 parser.add_argument('--input_width',               type=int,   help='input width',  default=640)
+parser.add_argument('--max_depth',                 type=float, help='maximum depth in estimation', default=80)
+
+parser.add_argument('--log_directory',             type=str,   help='directory to save checkpoints and summaries', default='')
+parser.add_argument('--checkpoint_path',           type=str,   help='path to a checkpoint to load', default='')
+parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='')
+
+parser.add_argument('--fix_first_conv_blocks',                 help='if set, will fix the first two conv blocks', action='store_true')
+parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')
+parser.add_argument('--retrain',                               help='if used with checkpoint_path, will restart training from step zero', action='store_true')
 parser.add_argument('--batch_size',                type=int,   help='batch size', default=4)
 parser.add_argument('--num_epochs',                type=int,   help='number of epochs', default=50)
 parser.add_argument('--learning_rate',             type=float, help='initial learning rate', default=1e-4)
 parser.add_argument('--end_learning_rate',         type=float, help='end learning rate', default=-1)
-parser.add_argument('--max_depth',                 type=float, help='maximum depth in estimation', default=80)
+
 parser.add_argument('--do_random_rotate',                      help='if set, will perform random rotation for augmentation', action='store_true')
 parser.add_argument('--degree',                    type=float, help='random rotation maximum degree', default=5.0)
 parser.add_argument('--do_kb_crop',                            help='if set, crop input images as kitti benchmark images', action='store_true')
+
 parser.add_argument('--num_gpus',                  type=int,   help='number of GPUs to use for training', default=1)
 parser.add_argument('--num_threads',               type=int,   help='number of threads to use for data loading', default=8)
-parser.add_argument('--log_directory',             type=str,   help='directory to save checkpoints and summaries', default='')
-parser.add_argument('--checkpoint_path',           type=str,   help='path to a checkpoint to load', default='')
-parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='')
-parser.add_argument('--retrain',                               help='if used with checkpoint_path, will restart training from step zero', action='store_true')
-parser.add_argument('--fix_first_conv_blocks',                 help='if set, will fix the first two conv blocks', action='store_true')
-parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')
+
 
 if sys.argv.__len__() == 2:
 	arg_filename_with_prefix = '@' + sys.argv[1]

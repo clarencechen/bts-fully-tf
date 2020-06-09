@@ -29,17 +29,20 @@ class BtsReader(object):
 		def read_decode_test(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
-			im_data = tf.io.read_file(image_path)
+			depth_gt_path = tf.strings.join([gt_path[:-1], split_line[1]])
+			im_data, depth_data = tf.io.read_file(image_path), tf.io.read_file(depth_gt_path)
+			depth_gt = tf.image.decode_png(depth_data, channels=0, dtype=tf.uint16)
 
+			image = tf.image.decode_jpeg(im_data)
 			if self.params.dataset == 'nyu':
-				image = tf.image.decode_jpeg(im_data)
+				depth_gt = tf.cast(depth_gt, tf.float32) / 1000.0
 			else:
-				image = tf.image.decode_png(im_data)
+				depth_gt = tf.cast(depth_gt, tf.float32) / 256.0
 
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			# paper V2 update does not require focal
 			#focal = tf.strings.to_number(split_line[2])
-			return image
+			return tf.concat([image, depth_gt], 2)
 
 		def read_decode_train(line):
 			split_line = tf.strings.split([line]).values
@@ -85,7 +88,7 @@ class BtsReader(object):
 			loader = loader.repeat().shuffle(_nte)
 			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
 		else:
-			loader = loader.repeat().map(lambda x: tf.io.parse_tensor(x, tf.float32)[:, :, 0:3], num_parallel_calls=num_data_workers)
+			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
 		
 		return loader
 
@@ -114,12 +117,17 @@ class BtsDataloader(object):
 		return image
 
 	def test_preprocess(self, batch):
-		batch.set_shape([None, None, None, 3])
-		batch = batch * 255.0 - self.image_mean
-		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
-			batch *= 0.017
+		image_batch, depth_gt_batch = batch[..., 0:3], batch[..., 3:4]
 
-		return batch
+		image_batch.set_shape([None, None, None, 3])
+		depth_gt_batch.set_shape([None, None, None, 1])
+
+		image_batch = image_batch * 255.0 - self.image_mean
+
+		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
+			image_batch *= 0.017
+
+		return image_batch, depth_gt_batch
 
 	def dataset_crop_train(self, sample):
 		if self.do_kb_crop is True:
@@ -174,8 +182,8 @@ class BtsDataloader(object):
 			loader = loader.prefetch(tf.data.experimental.AUTOTUNE)
 		else:
 			if self.do_kb_crop is True:
-				loader = loader.map(self.dataset_crop_test)
+				loader = loader.map(self.dataset_crop_test, num_parallel_calls=num_data_workers)
 			loader = loader.batch(1)
-			loader = loader.map(self.test_preprocess)
+			loader = loader.map(self.test_preprocess, num_parallel_calls=num_data_workers)
 			loader = loader.prefetch(1)
 		return loader

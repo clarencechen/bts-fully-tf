@@ -1,7 +1,4 @@
-#! -*- coding: utf-8 -*-
-
 import os, sys
-#from distutils.util import strtobool
 import numpy as np
 import tensorflow as tf
 

@@ -1,10 +1,10 @@
 from __future__ import absolute_import, division, print_function
 
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers, regularizers
+
 from custom_layers import Scale
 
 def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-3, is_training=False, weights_path=None, fix_first=False, fix_first_two=False):
@@ -173,7 +173,7 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 	model = Model(inputs, outputs, name='densenet')
 
 	if (weights_path is not None) and (weights_path != ''):
-	  model.load_weights(weights_path, by_name=True)
+		model.load_weights(weights_path, by_name=True)
 
 	assert len(outputs) == (1 + nb_dense_block)
 	return tuple(outputs)

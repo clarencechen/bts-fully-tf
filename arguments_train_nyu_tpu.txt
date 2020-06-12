@@ -13,7 +13,7 @@
 --max_depth 10
 --do_random_rotate
 --degree 7.5
---checkpoint_path gs://bts-tf2-model/bts_nyu_test/
 --log_directory gs://bts-tf2-model/
+--checkpoint_path gs://bts-tf2-model/bts_nyu_test/
 --pretrained_model ./models/densenet161_imagenet/weights.h5
 --fix_first_conv_blocks

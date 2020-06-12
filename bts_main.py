@@ -195,8 +195,7 @@ def main():
 			strategy = tf.distribute.get_strategy()
 
 		model_folder = os.path.join(args.log_directory, args.model_name)
-		command = 'mkdir {}'.format(model_folder)
-		os.system(command)
+		tf.io.gfile.makedirs(model_folder)
 
 		params = bts_parameters(
 			encoder=args.encoder,

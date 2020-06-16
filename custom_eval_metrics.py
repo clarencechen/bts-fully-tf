@@ -21,6 +21,7 @@ def metrics_list_factory(args):
 			return valid_mask
 
 		mask = tf.logical_and(y_true < args.max_depth_eval, y_true > args.min_depth_eval)
+		y_pred = tf.where(tf.math.is_finite(y_pred), y_pred, args.max_depth_eval)
 		y_pred = tf.clip_by_value(y_pred, args.min_depth_eval, args.max_depth_eval)
 		return tf.boolean_mask(y_true, mask), tf.boolean_mask(y_pred, mask)
 

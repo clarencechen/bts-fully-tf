@@ -1,6 +1,7 @@
 
 # Note
-This repository is a fully TensorFlow implementation of BTS model. It is forked from [original repository](https://github.com/saeid-h/bts-fully-tf). The code is modified to run with TensorFlow 1.6 without extra C++ code.
+This repository is a TensorFlow implementation of the BTS Depth Estimation model using tf.keras in Tensorflow 2, without using any custom C++ kernels/ops. It is forked from [original repository](https://github.com/cogaplex-bts/bts). Please submit an issue if you encounter incompatibilities with other minor versions of Tensorflow 2.
+***Currently, if you use Tensorflow 2.1.0 installed using pip, you may encounter a segmentation fault with certain GPU configurations. If that is the case, please install Tensorflow from source.***
 
 # BTS
 From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimation   
@@ -12,33 +13,21 @@ From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimat
 ## Video Demo 2
 [![Screenshot](https://img.youtube.com/vi/1J-GSb0fROw/maxresdefault.jpg)](https://www.youtube.com/watch?v=1J-GSb0fROw)
 
-## Testing with [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
+## Evaluation with [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 ```shell
-$ cd ~/workspace/bts/utils
-# Get official NYU Depth V2 split file
-$ wget http://horatio.cs.nyu.edu/mit/silberman/nyu_depth_v2/nyu_depth_v2_labeled.mat
-# Convert mat file to image files
-$ python extract_official_train_test_set_from_mat.py nyu_depth_v2_labeled.mat splits.mat ../../dataset/nyu_depth_v2/official_splits/
-$ cd ..
+$ cd ~/workspace/bts/
+$ chmod +x *.sh
+$ ./init_nyu_test_files.sh
 $ mkdir models
 # Get BTS model trained with NYU Depth V2
 $ python utils/download_from_gdrive.py 1KgLFgZa9U4X7Kq1_U908idFo_GBfu04d models/bts_nyu.zip
-$ cd models
-$ unzip bts_nyu.zip
+$ unzip models/bts_nyu.zip -d ./models/
 ```
-Once the preparation steps completed, you can test BTS using following commands.
+Once the preparation steps completed, you can evaluate BTS using following commands.
 ```
-$ cd ~/workspace/bts
+$ cd ~/workspace/bts/
 $ python bts_test.py arguments_test_nyu.txt
 ```
-This will save results to ./result_bts_nyu. With a single RTX 2080 Ti it takes about 34 seconds for processing 654 testing images. 
-
-## Evaluation
-Following command will evaluate the prediction results for NYU Depvh V2.
-```
-$ python eval_with_pngs.py --pred_path ./result_bts_nyu/raw/ --gt_path ../dataset/nyu_depth_v2/official_splits/test/ --dataset nyu --min_depth_eval 1e-3 --max_depth_eval 10 --eigen_crop
-```
-
 You should see outputs like this:
 ```
 Raw png files reading done
@@ -50,25 +39,18 @@ Computing errors
   0.880,   0.978,   0.996,   0.113,   0.060,   0.356,   0.142,  11.333,   0.048
 Done.
 ```
+A single RTX 2080 Ti takes about 34 seconds to process 654 testing images. 
 
 ## Preparation for Training
-### NYU Depvh V2
-First, you need to download DenseNet-161 model pretrained with ImageNet.
+### NYU Depth V2
+First, you need to download the pretrained Densenet-161 weights and dataset used in this work.
 ```
-# Get DenseNet-161 model pretrained with ImageNet
-$ cd ~/workspace/bts
-$ python utils/download_from_gdrive.py 1rn7xBF5eSISFKL2bIa8o3d8dNnsrlWfJ models/densenet161_imagenet.zip
-$ cd models && unzip densenet161_imagenet.zip
+$ cd ~/workspace/bts/
+$ chmod +x *.sh
+$ ./init_densenet_161.sh
+$ ./init_nyu_train_files.sh
 ```
-Then, download the dataset we used in this work.
-```
-$ cd ~/workspace/bts
-$ python utils/download_from_gdrive.py 1AysroWpfISmm-yRFGBgFTrLy6FjQwvwP ../dataset/nyu_depth_v2/sync.zip
-$ cd ../dataset/nyu_depth_v2
-$ unzip sync.zip
-```
-
-Or, you can prepare the dataset by yourself using original files from official site [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html).
+If you are unable obtain the dataset in this manner to due to Google Drive usage limits, you can prepare the dataset by yourself using original files from official site [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html).
 There are two options for downloading original files: Single file downloading and Segmented-files downloading.
 
 Single file downloading:

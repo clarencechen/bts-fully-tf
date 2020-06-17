@@ -1,5 +1,5 @@
 --mode train
---model_name bts_nyu_test
+--model_name bts_nyu
 --encoder densenet161_bts
 --dataset nyu
 --data_path dataset/nyu_depth_v2/sync/
@@ -14,7 +14,7 @@
 --input_width 544
 --max_depth 10
 --do_random_rotate
---degree 7.5
+--degree 2.5
 --log_directory ./models/
 --pretrained_model ./models/densenet161_imagenet/weights.h5
 --fix_first_conv_blocks

@@ -28,7 +28,6 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'max_depth, '
 										  'batch_size, '
 										  'dataset, '
-										  'num_devices, '
 										  'num_threads, '
 										  'num_epochs, '
 										  'use_tpu, ')
@@ -72,6 +71,8 @@ parser.add_argument('--min_depth_eval',      type=float, help='minimum depth for
 parser.add_argument('--max_depth_eval',      type=float, help='maximum depth for evaluation',        default=80)
 parser.add_argument('--do_kb_crop',                      help='if set, crop input images as kitti benchmark images', action='store_true')
 
+parser.add_argument('--batch_size',          type=int,   help='batch size per training replica', default=1)
+parser.add_argument('--num_gpus',            type=int,   help='number of GPUs to use for evaluation', default=1)
 parser.add_argument('--num_threads',         type=int,   help='number of threads to use for data loading', default=8)
 
 if sys.argv.__len__() == 2:
@@ -88,7 +89,7 @@ def get_num_lines(file_path):
 	return len(lines)
 
 
-def test(params):
+def test(strategy, params):
 	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
 	tensorboard_log_dir = os.path.join(args.output_directory, args.model_name, 'tensorboard')
 
@@ -102,13 +103,14 @@ def test(params):
 
 	loader = processor.process_dataset(loader, 'test')
 
-	model = bts_model(params, 'test')
-	loss = si_log_loss_wrapper(params.dataset)
-	model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
-	# Load checkpoint if set
-	print('Loading checkpoint at {}'.format(checkpoint_file))
-	model.load_weights(checkpoint_file, by_name=False).expect_partial()
-	print('Checkpoint successfully loaded')
+	with strategy.scope():
+		model = bts_model(params, 'test')
+		loss = si_log_loss_wrapper(params.dataset)
+		model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
+		# Load checkpoint if set
+		print('Loading checkpoint at {}'.format(checkpoint_file))
+		model.load_weights(checkpoint_file, by_name=False).expect_partial()
+		print('Checkpoint successfully loaded')
 
 	model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
 					   callbacks.ProgbarLogger(count_mode='steps')]
@@ -120,30 +122,47 @@ def test(params):
 		lines = f.readlines()
 	print('Now testing {} images.'.format(num_test_samples))
 
-	start_time = time.time()
-	with tf.device('/GPU:0'):
-		metrics = model.evaluate(loader, verbose=1, callbacks=model_callbacks)
-	elapsed_time = time.time() - start_time
-	print('Evaluation finished. Elapsed time: {}'.format(str(elapsed_time)))
+	metrics = model.evaluate(loader, verbose=1, callbacks=model_callbacks)
 	print("{:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}, {:>7}".format('silog', 'abs_rel', 'log10', 'rms', 'sq_rel', 'log_rms', 'd1', 'd2', 'd3'))
 	print("{0[1]:7.4f}, {0[2]:7.4f}, {0[3]:7.3f}, {0[4]:7.3f}, {0[5]:7.3f}, {0[6]:7.3f}, {0[7]:7.3f}, {0[8]:7.3f}, {0[9]:7.3f}".format(metrics))
 
 
 def main():
-	
+	# Find TPU cluster if available
+	try:
+		tpu = tf.distribute.cluster_resolver.TPUClusterResolver()
+		print('Running on TPU ', tpu.cluster_spec().as_dict()['worker'])
+	except ValueError:
+		tpu = None
+
+	# TPUStrategy for distributed training
+	if tpu:
+		tf.config.experimental_connect_to_cluster(tpu)
+		tf.tpu.experimental.initialize_tpu_system(tpu)
+		strategy = tf.distribute.experimental.TPUStrategy(tpu)
+	# MirroredStrategy for distributed training on multiple GPUs
+	elif args.num_gpus > 1:
+		gpus = tf.config.experimental.list_physical_devices('GPU')
+		if len(gpus) < args.num_gpus:
+			raise ValueError('Insufficient resources for distributed training: {} GPUs available out of {} GPUs requested.'.format(len(gpus), args.num_gpus))
+		gpu_name_list = [gpu.name for gpu in gpus]
+		strategy = tf.distribute.MirroredStrategy(devices=gpu_name_list[:num_gpus])
+	# Default strategy that works on CPU and single GPU
+	else:
+		strategy = tf.distribute.get_strategy()
+
 	params = bts_parameters(
 		encoder=args.encoder,
 		height=args.input_height,
 		width=args.input_width,
-		batch_size=1,
+		batch_size=args.batch_size * strategy.num_replicas_in_sync,
 		dataset=args.dataset,
 		max_depth=args.max_depth,
-		num_devices=1,
 		num_threads=args.num_threads,
 		num_epochs=None,
-		use_tpu=False)
+		use_tpu=False if tpu is None else True)
 
-	test(params)
+	test(strategy, params)
 
 
 if __name__ == '__main__':

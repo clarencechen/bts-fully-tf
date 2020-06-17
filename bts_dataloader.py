@@ -104,12 +104,8 @@ class BtsDataloader(object):
 		self.do_kb_crop = do_kb_crop
 		self.image_mean = tf.reshape(tf.constant([123.68, 116.78, 103.94], dtype=tf.float32), [1, 1, 1, 3])
 
-		assert not self.params.batch_size % self.params.num_devices
-		self.mini_batch_size = int(self.params.batch_size / self.params.num_devices)
-
 	def dataset_crop_test(self, image):
-		height = tf.shape(input=image)[0]
-		width = tf.shape(input=image)[1]
+		height, width = tf.shape(input=image)[0], tf.shape(input=image)[1]
 		top_margin = tf.cast(height - 352, dtype='int32')
 		left_margin = tf.cast((width - 1216) / 2, dtype='int32')
 		image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
@@ -119,8 +115,8 @@ class BtsDataloader(object):
 	def test_preprocess(self, batch):
 		image_batch, depth_gt_batch = batch[..., 0:3], batch[..., 3:4]
 
-		image_batch.set_shape([None, None, None, 3])
-		depth_gt_batch.set_shape([None, None, None, 1])
+		image_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
+		depth_gt_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 1])
 
 		image_batch = image_batch * 255.0 - self.image_mean
 
@@ -155,17 +151,20 @@ class BtsDataloader(object):
 		image_batch, depth_gt_batch = batch[..., 0:3], batch[..., 3:4]
 
 		# Random gamma, brightness, color augmentation
-		gamma = tf.random.uniform([self.mini_batch_size, 1, 1, 1], 0.9, 1.1)
-		brightness = tf.random.uniform([self.mini_batch_size, 1, 1, 1], 0.75, 1.25)
-		colors = tf.random.uniform([self.mini_batch_size, 1, 1, 3], 0.9, 1.1)
-		do_augment = tf.math.round(tf.random.uniform([self.mini_batch_size, 1, 1, 1], 0.0, 1.0))
+		gamma = tf.random.uniform([self.params.batch_size, 1, 1, 1], 0.9, 1.1)
+		if self.params.dataset == 'nyu':
+			brightness = tf.random.uniform([self.params.batch_size, 1, 1, 1], 0.75, 1.25)
+		else:
+			brightness = tf.random.uniform([self.params.batch_size, 1, 1, 1], 0.9, 1.1)
+		colors = tf.random.uniform([self.params.batch_size, 1, 1, 3], 0.9, 1.1)
+		do_augment = tf.math.round(tf.random.uniform([self.params.batch_size, 1, 1, 1], 0.0, 1.0))
 		augmented = tf.clip_by_value((brightness * colors) * (image_batch ** gamma), 0, 1)
 		image_batch = do_augment * augmented + (1.0 - do_augment) * image_batch
 
-		image_batch.set_shape([self.mini_batch_size, self.params.height, self.params.width, 3])
-		depth_gt_batch.set_shape([self.mini_batch_size, self.params.height, self.params.width, 1])
+		image_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
+		depth_gt_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 1])
 
-		image_batch = image_batch[..., ::-1] * 255.0 - self.image_mean
+		image_batch = image_batch * 255.0 - self.image_mean
 
 		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
 			image_batch *= 0.017
@@ -177,13 +176,13 @@ class BtsDataloader(object):
 
 		if mode == 'train':
 			loader = loader.map(self.dataset_crop_train, num_parallel_calls=num_data_workers)
-			loader = loader.batch(self.mini_batch_size, drop_remainder=self.params.use_tpu)
+			loader = loader.batch(self.params.batch_size, drop_remainder=self.params.use_tpu)
 			loader = loader.map(self.train_preprocess, num_parallel_calls=num_data_workers)
 			loader = loader.prefetch(tf.data.experimental.AUTOTUNE)
 		else:
 			if self.do_kb_crop is True:
 				loader = loader.map(self.dataset_crop_test, num_parallel_calls=num_data_workers)
-			loader = loader.batch(1)
+			loader = loader.batch(self.params.batch_size, drop_remainder=self.params.use_tpu)
 			loader = loader.map(self.test_preprocess, num_parallel_calls=num_data_workers)
-			loader = loader.prefetch(1)
+			loader = loader.prefetch(tf.data.experimental.AUTOTUNE)
 		return loader

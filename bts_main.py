@@ -29,7 +29,6 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'max_depth, '
 										  'batch_size, '
 										  'dataset, '
-										  'num_devices, '
 										  'num_threads, '
 										  'num_epochs, '
 										  'use_tpu, ')
@@ -54,35 +53,46 @@ def convert_arg_line_to_args(arg_line):
 parser = argparse.ArgumentParser(description='BTS TensorFlow implementation.', fromfile_prefix_chars='@')
 parser.convert_arg_line_to_args = convert_arg_line_to_args
 
+# Model
 parser.add_argument('--mode',                      type=str,   help='train or test', default='train')
 parser.add_argument('--model_name',                type=str,   help='model name', default='bts_eigen')
 parser.add_argument('--encoder',                   type=str,   help='type of encoder, desenet121_bts or densenet161_bts', default='densenet161_bts')
 
+# Dataset meta
 parser.add_argument('--dataset',                   type=str,   help='dataset to train on, kitti or nyu', default='kitti')
 parser.add_argument('--data_path',                 type=str,   help='path to the data', required=False)
 parser.add_argument('--gt_path',                   type=str,   help='path to the groundtruth data', required=False)
 parser.add_argument('--tfrecord_path',             type=str,   help='path to the combined TFRecord dataset in zip format', required=False)
 parser.add_argument('--filenames_file',            type=str,   help='path to the filenames text file', required=True)
+
+# Dataset params
 parser.add_argument('--input_height',              type=int,   help='input height', default=480)
 parser.add_argument('--input_width',               type=int,   help='input width',  default=640)
 parser.add_argument('--max_depth',                 type=float, help='maximum depth in estimation', default=80)
 
+# Log and save
 parser.add_argument('--log_directory',             type=str,   help='directory to save checkpoints and summaries', default='')
 parser.add_argument('--checkpoint_path',           type=str,   help='path to a checkpoint to load', default='')
 parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='')
 
+# Model Hyperparams
 parser.add_argument('--fix_first_conv_blocks',                 help='if set, will fix the first two conv blocks', action='store_true')
 parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')
 parser.add_argument('--retrain',                               help='if used with checkpoint_path, will restart training from step zero', action='store_true')
-parser.add_argument('--batch_size',                type=int,   help='batch size', default=4)
-parser.add_argument('--num_epochs',                type=int,   help='number of epochs', default=50)
-parser.add_argument('--learning_rate',             type=float, help='initial learning rate', default=1e-4)
-parser.add_argument('--end_learning_rate',         type=float, help='end learning rate', default=-1)
 
+# Training Hyperparams
+parser.add_argument('--batch_size',                type=int,   help='batch size per training replica', default=4)
+parser.add_argument('--num_epochs',                type=int,   help='number of epochs', default=50)
+parser.add_argument('--learning_rate',             type=float, help='initial learning rate per training replica', default=1e-4)
+parser.add_argument('--end_learning_rate',         type=float, help='end learning rate per training replica', default=-1)
+parser.add_argument('--adam_eps',                  type=float, help='epsilon in Adam optimizer', default=1e-3)
+
+# Preprocessing
 parser.add_argument('--do_random_rotate',                      help='if set, will perform random rotation for augmentation', action='store_true')
 parser.add_argument('--degree',                    type=float, help='random rotation maximum degree', default=5.0)
 parser.add_argument('--do_kb_crop',                            help='if set, crop input images as kitti benchmark images', action='store_true')
 
+# Devices
 parser.add_argument('--num_gpus',                  type=int,   help='number of GPUs to use for training', default=1)
 parser.add_argument('--num_threads',               type=int,   help='number of threads to use for data loading', default=8)
 
@@ -140,7 +150,7 @@ def train(strategy, params):
 											 fix_first_two=args.fix_first_conv_blocks, 
 											 pretrained_weights_path=args.pretrained_model)
 		wd_dict = get_weight_decays(model)
-		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=1e-3)
+		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=args.adam_eps)
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer=opt, loss=loss)
 
@@ -171,7 +181,6 @@ def train(strategy, params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	# model.save(model_save_dir, save_format='tf')
 	model.save_weights(model_save_dir, save_format='tf')
 
 	print('{} training finished at {}'.format(args.model_name, datetime.datetime.now()))
@@ -191,7 +200,16 @@ def main():
 			tf.config.experimental_connect_to_cluster(tpu)
 			tf.tpu.experimental.initialize_tpu_system(tpu)
 			strategy = tf.distribute.experimental.TPUStrategy(tpu)
-		else: # default strategy that works on CPU and single GPU
+		# MirroredStrategy for distributed training on multiple GPUs
+		elif args.num_gpus > 1:
+			gpus = tf.config.experimental.list_physical_devices('GPU')
+			if not gpus or len(gpus) < args.num_gpus:
+				available_gpus = len(gpus) if gpus else 0
+				raise ValueError('Insufficient resources for distributed training: {} GPUs available out of {} GPUs requested.'.format(available_gpus, args.num_gpus))
+			gpu_name_list = [gpu.name for gpu in gpus]
+			strategy = tf.distribute.MirroredStrategy(devices=gpu_name_list[:num_gpus])
+		# Default strategy that works on CPU and single GPU
+		else:
 			strategy = tf.distribute.get_strategy()
 
 		model_folder = os.path.join(args.log_directory, args.model_name)
@@ -204,7 +222,6 @@ def main():
 			batch_size=args.batch_size * strategy.num_replicas_in_sync,
 			dataset=args.dataset,
 			max_depth=args.max_depth,
-			num_devices=1 if tpu else args.num_gpus,
 			num_threads=args.num_threads,
 			num_epochs=args.num_epochs,
 			use_tpu=False if tpu is None else True)

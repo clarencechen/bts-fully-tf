@@ -2,6 +2,7 @@ from __future__ import absolute_import, division, print_function
 
 import numpy as np
 import tensorflow as tf
+from math import pi
 from tensorflow.keras import layers
 try:
 	from tensorflow.keras import initializations
@@ -11,7 +12,7 @@ import tensorflow.keras.backend as K
 
 class LocalPlanarGuidance(layers.Conv2D):
 	def __init__(self, height, width, upratio, **kwargs):
-		super(LocalPlanarGuidance, self).__init__(filters=4, kernel_size=1, dilation_rate=1, padding='same', activation=None, **kwargs)
+		super(LocalPlanarGuidance, self).__init__(filters=3, kernel_size=1, dilation_rate=1, padding='same', activation='sigmoid', **kwargs)
 		self.full_height = height
 		self.full_width = width
 		self.upratio = upratio
@@ -33,17 +34,16 @@ class LocalPlanarGuidance(layers.Conv2D):
 		return super(LocalPlanarGuidance, self).build(input_shape)
 
 	def call(self, inputs):
-		conv_out = super(LocalPlanarGuidance, self).call(inputs)
-
-		raw_normal, raw_dist = K.tanh(conv_out[:, :, :, 0:3]), K.sigmoid(conv_out[:, :, :, 3:])
-		plane_coeffs = K.concatenate([raw_normal, raw_dist], axis=3)
-
+		conv_sigmoid = super(LocalPlanarGuidance, self).call(inputs)
+		# Decrease max value of theta to pi/3 to enhance numerical stability
+		phi, theta, raw_dist = conv_sigmoid[..., 0] * 2 * pi, conv_sigmoid[..., 1] * pi / 3, conv_sigmoid[..., 2]
+		plane_coeffs = K.stack([K.sin(theta) * K.cos(phi), K.sin(theta) * K.sin(phi), K.cos(theta), raw_dist], axis=-1)
+		
 		plane_exp_height = K.repeat_elements(plane_coeffs, self.upratio, axis=1)
 		plane_exp = K.repeat_elements(plane_exp_height, self.upratio, axis=2)
 
-		plane_normal_unit, plane_dist = K.l2_normalize(plane_exp[:, :, :, 0:3], axis=3), plane_exp[:, :, :, 3:]
-		denominator = K.sum(self.pixel_dir_unit*plane_normal_unit, axis=3, keepdims=True)
-		return plane_dist / (denominator + K.epsilon()) # V2 Update (Normalize first)
+		denominator = K.sum(self.pixel_dir_unit*plane_exp[..., 0:3], axis=-1, keepdims=True) + K.epsilon()
+		return plane_exp[..., 3:] / denominator
 
 	def get_config(self):
 		base_config = super(LocalPlanarGuidance, self).get_config()

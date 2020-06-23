@@ -13,28 +13,28 @@ def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filter
 
 	def conv_block_no_lpg(inputs, skips, num_filters):
 		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
-		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample)
+		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(upsample)
 		upconv = layers.BatchNormalization(**batch_norm_params)(upconv, training=is_training)
 		concat = layers.Concatenate(axis=3)([upconv, skips])
-		iconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat)
+		iconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(concat)
 		return iconv
 
 	def conv_block(inputs, skips, lpgs, num_filters):
 		upsample = layers.UpSampling2D(size=2, interpolation='nearest')(inputs)
-		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample)
+		upconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(upsample)
 		upconv = layers.BatchNormalization(**batch_norm_params)(upconv, training=is_training)
 		concat = layers.Concatenate(axis=3)([upconv, skips, lpgs])
-		iconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat)
+		iconv = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(concat)
 		return iconv
 
 	def dense_aspp_block(inputs, num_filters, rate, batch_norm_first=True):
 		if batch_norm_first:
 			inputs = layers.BatchNormalization(**batch_norm_params)(inputs, training=is_training)
 		relu1 = layers.ReLU()(inputs)
-		iconv = layers.Conv2D(num_filters, kernel_size=1, strides=1, padding='same', activation=None)(relu1)
+		iconv = layers.Conv2D(num_filters, kernel_size=1, strides=1, padding='same', activation=None, use_bias=False)(relu1)
 		iconv = layers.BatchNormalization(**batch_norm_params)(iconv, training=is_training)
 		relu2 = layers.ReLU()(iconv)
-		daspp = layers.Conv2D(num_filters // 2, kernel_size=3, dilation_rate=rate, padding='same', activation=None)(relu2)
+		daspp = layers.Conv2D(num_filters // 2, kernel_size=3, dilation_rate=rate, padding='same', activation=None, use_bias=False)(relu2)
 		return daspp
 
 	iconv5 = conv_block_no_lpg(dense_features, skip_16, num_filters) # H/16
@@ -58,7 +58,7 @@ def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filter
 	daspp_24 = dense_aspp_block(concat4_5, num_filters, rate=24)
 
 	concat4_daspp = layers.Concatenate(axis=3)([iconv4_bn, daspp_3, daspp_6, daspp_12, daspp_18, daspp_24])
-	daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu')(concat4_daspp)
+	daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(concat4_daspp)
 
 	depth_8x8_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=8, name='depth_8x8_scaled')(daspp_feat)
 	depth_8x8_scaled_ds = layers.Lambda(lambda x : x[:, ::4, ::4, ...])(depth_8x8_scaled) # Downsampling Layer
@@ -76,11 +76,11 @@ def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filter
 
 	num_filters = num_filters // 2
 	upsample1 = layers.UpSampling2D(size=2, interpolation='nearest')(iconv2)
-	upconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(upsample1) # H
+	upconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(upsample1) # H
 	concat1 = layers.Concatenate(axis=3)([upconv1, depth_2x2_scaled, depth_4x4_scaled, depth_8x8_scaled])
-	iconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu')(concat1)
+	iconv1 = layers.Conv2D(num_filters, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(concat1)
 
-	depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid')(iconv1)
+	depth_est_scaled = layers.Conv2D(1, kernel_size=3, strides=1, padding='same', activation='sigmoid', use_bias=False)(iconv1)
 	depth_est = layers.Lambda(lambda inputs: inputs * max_depth, name='depth_est')(depth_est_scaled)
 
 	return depth_est

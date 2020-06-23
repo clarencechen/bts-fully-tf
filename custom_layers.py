@@ -12,7 +12,7 @@ import tensorflow.keras.backend as K
 
 class LocalPlanarGuidance(layers.Conv2D):
 	def __init__(self, height, width, upratio, **kwargs):
-		super(LocalPlanarGuidance, self).__init__(filters=3, kernel_size=1, dilation_rate=1, padding='same', activation='sigmoid', **kwargs)
+		super(LocalPlanarGuidance, self).__init__(filters=3, kernel_size=1, dilation_rate=1, padding='same', activation='sigmoid', use_bias=False, **kwargs)
 		self.full_height = height
 		self.full_width = width
 		self.upratio = upratio

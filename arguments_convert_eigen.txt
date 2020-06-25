@@ -1,0 +1,5 @@
+--dataset kitti
+--data_path dataset/kitti/
+--gt_path dataset/kitti/data_depth_annotated/
+--filenames_file ./train_test_inputs/eigen_train_files_with_gt.txt
+--tfrecord_path dataset/kitti/kitti-eigen-sync-compressed.tfrecord

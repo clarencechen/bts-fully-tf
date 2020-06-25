@@ -1,9 +1,9 @@
 --mode train
---model_name bts_eigen_test
+--model_name bts_eigen
 --encoder densenet161_bts
 --dataset kitti
---data_path ../dataset/kitti_dataset/
---gt_path ../dataset/kitti_dataset/data_depth_annotated/
+--data_path dataset/kitti/
+--gt_path dataset/kitti/data_depth_annotated/
 --filenames_file ./train_test_inputs/eigen_train_files_with_gt.txt
 --batch_size 4
 --num_epochs 50

@@ -58,7 +58,7 @@ $ ./init_nyu_train_files.sh
 If you want to train this model on a TPU, you must use a Google Cloud Storage Bucket to store this dataset in tfrecord format due to data pipeline speed constraints for TPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python convert_to_tfrecord.py arguments_convert_nyu.txt
+$ python convert_data.py arguments_convert_nyu.txt
 $ gcloud config set project {project_id}
 $ gsutil cp nyu-depth-v2-compressed.tfrecord gs://{bucket_name}/
 $ rm nyu-depth-v2-compressed.tfrecord
@@ -108,17 +108,13 @@ You can also train BTS with KITTI dataset by following procedures.
 First, download the ground truth depthmaps from [KITTI](http://www.cvlibs.net/download.php?file=data_depth_annotated.zip).
 Then, download and unzip the raw dataset using following commands.
 ```
-$ cd ~/workspace/bts-fully-tf/dataset
-$ mkdir kitti && cd kitti
-$ mv ~/Downloads/data_depth_annotated.zip .
-$ unzip data_depth_annotated.zip
-$ aria2c -x 16 -i ../utils/kitti_archives_to_download.txt
-$ parallel unzip ::: *.zip
+$ cd ~/workspace/bts-fully-tf/
+$ ./init_kitti_files.sh
 ```
 If you want to train this model on a TPU, you must use a Google Cloud Storage Bucket to store this dataset in tfrecord format due to data pipeline speed constraints for TPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python convert_to_tfrecord.py arguments_convert_eigen.txt
+$ python convert_data.py arguments_convert_eigen.txt
 $ gcloud config set project {project_id}
 $ gsutil cp kitti-eigen-sync-compressed.tfrecord gs://{bucket_name}/
 $ rm kitti-eigen-sync-compressed.tfrecord

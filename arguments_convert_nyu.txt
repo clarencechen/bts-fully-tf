@@ -3,3 +3,4 @@
 --gt_path dataset/nyu_depth_v2/sync/
 --filenames_file ./utils/nyudepthv2_train_files_with_gt.txt
 --tfrecord_path dataset/nyu_depth_v2/nyu-depth-v2-sync-compressed.tfrecord
+--num_threads 8

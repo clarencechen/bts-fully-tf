@@ -25,7 +25,7 @@ class BtsReader(object):
 	def __init__(self, params):
 		self.params = params
 
-	def read_from_image_files(self, data_path, gt_path, filenames_file, mode):
+	def read_from_image_files(self, data_path, gt_path, filenames_file, mode, shuffle_dataset=True):
 		def read_decode_test(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
@@ -47,7 +47,7 @@ class BtsReader(object):
 		def read_decode_train(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
-			depth_gt_path = tf.strings.join([gt_path[:-1], split_line[1]])
+			depth_gt_path = tf.strings.join([gt_path, split_line[1]])
 			#paper V2 update does not require focal
 			#focal = tf.strings.to_number(split_line[2])
 			im_data, depth_data = tf.io.read_file(image_path), tf.io.read_file(depth_gt_path)
@@ -69,9 +69,10 @@ class BtsReader(object):
 		with tf.io.gfile.GFile(filenames_file, 'r') as f:
 			filenames = f.readlines()
 		loader = tf.data.Dataset.from_tensor_slices(filenames)
-		loader = loader.repeat().shuffle(len(filenames))
-		
+
 		if mode == 'train':
+			if shuffle_dataset:
+				loader = loader.repeat().shuffle(len(filenames))
 			loader = loader.map(read_decode_train, num_parallel_calls=self.params.num_threads)
 		else:
 			loader = loader.map(read_decode_test, num_parallel_calls=self.params.num_threads)

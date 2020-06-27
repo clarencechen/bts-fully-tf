@@ -14,7 +14,7 @@ dos2unix kitti_archives_to_download.txt
 # Only unzip used image types and delete orginal zip files to save >100GB disk space
 cat kitti_archives_to_download.txt | parallel --compress "wget -nv {} && unzip -q {/} '*/{/.}/image_02/*' -d ./dataset/kitti/ && rm {/}"
 # Unzip calibration files which don't have 'image_02' directories in the archive
-parallel 'unzip {} && rm {}' :::: *calib.zip
+ls *calib.zip | parallel 'unzip {/} -d ./dataset/kitti/ && rm {/}'
 # Merge KITTI ground truth depth maps together into one directory
 mkdir dataset/kitti/data_depth_annotated/
 mv ./dataset/kitti/train/* ./dataset/kitti/val/* ./dataset/kitti/data_depth_annotated/

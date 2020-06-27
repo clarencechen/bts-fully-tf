@@ -63,6 +63,7 @@ parser.add_argument('--dataset',                   type=str,   help='dataset to 
 parser.add_argument('--data_path',                 type=str,   help='path to the data', required=False)
 parser.add_argument('--gt_path',                   type=str,   help='path to the groundtruth data', required=False)
 parser.add_argument('--tfrecord_path',             type=str,   help='path to the combined TFRecord dataset in zip format', required=False)
+parser.add_argument('--tfrecord_shards',           type=int,   help='number of shards of the combined TFRecord dataset to read', default=1)
 parser.add_argument('--filenames_file',            type=str,   help='path to the filenames text file', required=True)
 
 # Dataset params
@@ -141,7 +142,7 @@ def train(strategy, params):
 	if args.tfrecord_path is None or args.tfrecord_path == '':
 		loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, args.mode)
 	else:
-		loader = reader.read_from_tf_record(args.tfrecord_path, args.mode)
+		loader = reader.read_from_tf_record(args.tfrecord_path, args.filenames_file, args.mode, args.tfrecord_shards)
 
 	loader = processor.process_dataset(loader, args.mode)
 

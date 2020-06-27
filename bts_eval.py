@@ -56,7 +56,9 @@ parser.add_argument('--encoder',             type=str,   help='type of encoder, 
 parser.add_argument('--data_path',           type=str,   help='path to the data', required=False)
 parser.add_argument('--gt_path',             type=str,   help='path to the groundtruth data', required=False)
 parser.add_argument('--tfrecord_path',       type=str,   help='path to the combined TFRecord dataset in zip format', required=False)
+parser.add_argument('--tfrecord_shards',     type=int,   help='number of shards of the combined TFRecord dataset to read', default=1)
 parser.add_argument('--filenames_file',      type=str,   help='path to the filenames text file', required=True)
+
 parser.add_argument('--input_height',        type=int,   help='input height', default=480)
 parser.add_argument('--input_width',         type=int,   help='input width', default=640)
 parser.add_argument('--max_depth',           type=float, help='maximum depth in estimation',        default=80)
@@ -99,7 +101,7 @@ def test(strategy, params):
 	if args.tfrecord_path is None or args.tfrecord_path == '':
 		loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, 'test')
 	else:
-		loader = reader.read_from_tf_record(args.tfrecord_path, 'test')
+		loader = reader.read_from_tf_record(args.tfrecord_path, args.filenames_file, 'test', args.tfrecord_shards)
 
 	loader = processor.process_dataset(loader, 'test')
 

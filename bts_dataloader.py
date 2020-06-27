@@ -25,7 +25,7 @@ class BtsReader(object):
 	def __init__(self, params):
 		self.params = params
 
-	def read_from_image_files(self, data_path, gt_path, filenames_file, mode, shuffle_dataset=True):
+	def read_from_image_files(self, data_path, gt_path, filenames_file, mode='train', shuffle_dataset=True):
 		def read_decode_test(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
@@ -79,14 +79,21 @@ class BtsReader(object):
 
 		return loader
 
-	def read_from_tf_record(self, tf_record_file, mode):
+	def read_from_tf_record(self, tf_record_file, filenames_file, mode='train', num_shards=1):
 		num_data_workers = tf.data.experimental.AUTOTUNE if self.params.use_tpu else self.params.num_threads
 		# Change below hardocded value later
-		_nte = 24231
-
-		loader = tf.data.TFRecordDataset([tf_record_file], compression_type="GZIP", num_parallel_reads=num_data_workers)
+		with tf.io.gfile.GFile(filenames_file, 'r') as f:
+			num_examples = len(f.readlines())
+		if num_shards > 1:
+			loader = tf.data.TFRecordDataset(['{}_part_{}'.format(tf_record_file, i) for i in range(num_shards)],
+				compression_type="GZIP",
+				num_parallel_reads=num_data_workers)
+		else:
+			loader = tf.data.TFRecordDataset([tf_record_file],
+				compression_type="GZIP",
+				num_parallel_reads=num_data_workers)
 		if mode == 'train':
-			loader = loader.repeat().shuffle(_nte)
+			loader = loader.repeat().shuffle(num_examples)
 			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
 		else:
 			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
@@ -106,7 +113,7 @@ class BtsDataloader(object):
 		self.image_mean = tf.reshape(tf.constant([123.68, 116.78, 103.94], dtype=tf.float32), [1, 1, 1, 3])
 
 	def dataset_crop_test(self, image):
-		height, width = tf.shape(input=image)[0], tf.shape(input=image)[1]
+		height, width = tf.shape(image)[0], tf.shape(image)[1]
 		top_margin = tf.cast(height - 352, dtype='int32')
 		left_margin = tf.cast((width - 1216) / 2, dtype='int32')
 		image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
@@ -128,7 +135,7 @@ class BtsDataloader(object):
 
 	def dataset_crop_train(self, sample):
 		if self.do_kb_crop is True:
-			height, width = tf.shape(input=image)[0], tf.shape(input=image)[1]
+			height, width = tf.shape(sample)[0], tf.shape(sample)[1]
 			top_margin = tf.cast(height - 352, dtype='int32')
 			left_margin = tf.cast((width - 1216) / 2, dtype='int32')
 			sample = sample[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]

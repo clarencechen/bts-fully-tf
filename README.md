@@ -136,24 +136,17 @@ $ cd ~/workspace/bts
 $ python utils/download_from_gdrive.py 1w4WbSQxui8GTDEsjX5xb4m7_-5yCznhQ models/bts_eigen.zip
 $ cd models && unzip bts_eigen.zip
 ```
-Test and save results.
+Evaluate and save results.
 ```
 $ cd ~/workspace/bts
 $ python bts_test.py arguments_test_eigen.txt
 ```
-This will save results to ./result_bts_eigen.
-Finally, we can evaluate the prediction results with
-```
-$ python eval_with_pngs.py --pred_path ./result_bts_eigen/raw/ --gt_path ../dataset/kitti_dataset/data_depth_annotated/ --dataset kitti --min_depth_eval 1e-3 --max_depth_eval 80 --do_kb_crop --garg_crop
-```
 You should see outputs like this:
 ```
-GT files reading done
-45 GT files missing
-Computing errors
-     d1,      d2,      d3,  AbsRel,   SqRel,    RMSE, RMSElog,   SILog,   log10
-  0.951,   0.993,   0.998,   0.064,   0.256,   2.796,   0.100,   9.175,   0.028
-Done.
+Now testing 652 images.
+81/81 [==============================] - 59s 722ms/step
+  silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
+10.8567,  0.0744,   0.033,   3.282,   0.342,   0.117,   0.934,   0.988,   0.997
 ```
 
 ## License

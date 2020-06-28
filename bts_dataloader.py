@@ -29,7 +29,7 @@ class BtsReader(object):
 		def read_decode_test(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
-			depth_gt_path = tf.strings.join([gt_path[:-1], split_line[1]])
+			depth_gt_path = tf.strings.join([gt_path, split_line[1]])
 			im_data, depth_data = tf.io.read_file(image_path), tf.io.read_file(depth_gt_path)
 			depth_gt = tf.image.decode_png(depth_data, channels=0, dtype=tf.uint16)
 
@@ -38,18 +38,18 @@ class BtsReader(object):
 				depth_gt = tf.cast(depth_gt, tf.float32) / 1000.0
 			else:
 				depth_gt = tf.cast(depth_gt, tf.float32) / 256.0
+			if self.params.dataset == 'kitti':
+				focal = tf.strings.to_number(split_line[2])
+				# Normalize ground truth depth map to focal length of each example in KITTI Eigen train set
+				depth_gt /= focal / 715.0873
 
 			image = tf.image.convert_image_dtype(image, tf.float32)
-			# paper V2 update does not require focal
-			#focal = tf.strings.to_number(split_line[2])
 			return tf.concat([image, depth_gt], 2)
 
 		def read_decode_train(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
 			depth_gt_path = tf.strings.join([gt_path, split_line[1]])
-			#paper V2 update does not require focal
-			#focal = tf.strings.to_number(split_line[2])
 			im_data, depth_data = tf.io.read_file(image_path), tf.io.read_file(depth_gt_path)
 			depth_gt = tf.image.decode_png(depth_data, channels=0, dtype=tf.uint16)
 
@@ -60,6 +60,10 @@ class BtsReader(object):
 			else:
 				image = tf.image.decode_png(im_data)
 				depth_gt = tf.cast(depth_gt, tf.float32) / 256.0
+			if self.params.dataset == 'kitti':
+				# Normalize ground truth depth map to focal length of each example in KITTI Eigen training set
+				focal = tf.strings.to_number(split_line[2])
+				depth_gt /= focal / 715.0873
 
 			image = tf.image.convert_image_dtype(image, tf.float32)
 			return tf.concat([image, depth_gt], 2)

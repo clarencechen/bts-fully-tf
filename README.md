@@ -19,10 +19,6 @@ From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimat
 $ cd ~/workspace/bts-fully-tf/
 $ chmod +x *.sh
 $ ./init_nyu_test_files.sh
-$ mkdir models
-# Get BTS model trained with NYU Depth V2
-$ python utils/download_from_gdrive.py 1KgLFgZa9U4X7Kq1_U908idFo_GBfu04d models/bts_nyu.zip
-$ unzip models/bts_nyu.zip -d ./models/
 ```
 Once the preparation steps completed, you can evaluate BTS using following commands.
 ```
@@ -31,15 +27,14 @@ $ python bts_test.py arguments_test_nyu.txt
 ```
 You should see outputs like this:
 ```
-Raw png files reading done
-Evaluating 654 files
-GT files reading done
-0 GT files missing
-Computing errors
-     d1,      d2,      d3,  AbsRel,   SqRel,    RMSE, RMSElog,   SILog,   log10
-  0.880,   0.978,   0.996,   0.113,   0.060,   0.356,   0.142,  11.333,   0.048
-Done.
+Now testing 654 images.
+81/81 [==============================] - 44s 546ms/step
+  silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
+13.1224,  0.1271,   0.055,   0.447,   0.080,   0.162,   0.844,   0.971,   0.995
 ```
+Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
+
+### Estimated Evaluation Time on Different Accelerators
 A single RTX 2080 Ti takes about 34 seconds to process 654 testing images. \
 A single TPU pod with 8 cores takes about 44 seconds to process 654 testing images.
 
@@ -131,13 +126,6 @@ $ python bts_main.py arguments_train_eigen_gcloud.txt
 ## Testing and Evaluation with [KITTI](http://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
 Once you have KITTI dataset and official ground truth depthmaps, you can test and evaluate our model with following commands.
 ```
-# Get KITTI model trained with KITTI Eigen split
-$ cd ~/workspace/bts
-$ python utils/download_from_gdrive.py 1w4WbSQxui8GTDEsjX5xb4m7_-5yCznhQ models/bts_eigen.zip
-$ cd models && unzip bts_eigen.zip
-```
-Evaluate and save results.
-```
 $ cd ~/workspace/bts
 $ python bts_test.py arguments_test_eigen.txt
 ```
@@ -148,6 +136,7 @@ Now testing 652 images.
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
 10.8567,  0.0744,   0.033,   3.282,   0.342,   0.117,   0.934,   0.988,   0.997
 ```
+Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
 
 ## License
 Copyright (C) 2019 Jin Han Lee, Myung-Kyu Han, Dong Wook Ko and Il Hong Suh \

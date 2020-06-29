@@ -156,27 +156,24 @@ class AdamW(AdamWBase):
 def get_weight_decays(model):
 	wd_dict = {}
 	for layer in model.layers:
-		layer_penalties = _get_layer_penalties(layer)
-		if layer_penalties:
-			for p in layer_penalties:
-				weight_name, weight_penalty = p
+		layer_p_dict = _get_layer_penalties(layer)
+		if layer_p_dict:
+			for weight_name, weight_penalty in layer_p_dict.items():
 				if not all(wp == 0 for wp in weight_penalty):
-					wd_dict.update({weight_name: weight_penalty})
+					wd_dict[weight_name] = weight_penalty
 	return wd_dict
 
 def _get_layer_penalties(layer):
-	if hasattr(layer, 'cell') or \
-	  (hasattr(layer, 'layer') and hasattr(layer.layer, 'cell')):
+	if hasattr(layer, 'cell') or (hasattr(layer, 'layer') and hasattr(layer.layer, 'cell')):
 		return _rnn_penalties(layer)
 	elif hasattr(layer, 'layer') and not hasattr(layer.layer, 'cell'):
 		layer = layer.layer
 
-	penalties = []
+	penalties = {}
 	for weight_name in ['kernel', 'bias']:
 		_lambda = getattr(layer, weight_name + '_regularizer', None)
 		if _lambda is not None:
-			l1l2 = (float(_lambda.l1), float(_lambda.l2))
-			penalties.append([getattr(layer, weight_name).name, l1l2])
+			penalties[getattr(layer, weight_name).name] = (float(_lambda.l1), float(_lambda.l2))
 			_lambda.l1 = np.array(0., dtype=_lambda.l1.dtype)
 			_lambda.l2 = np.array(0., dtype=_lambda.l2.dtype)
 	return penalties
@@ -185,21 +182,20 @@ def _rnn_penalties(layer):
 	penalties = []
 	if hasattr(layer, 'backward_layer'):
 		for layer in [layer.forward_layer, layer.backward_layer]:
-			penalties += _cell_penalties(layer.cell)
+			for name, l1l2 in _cell_penalties(layer.cell).items():
+				penalties[name] = l1l2
 		return penalties
 	else:
 		return _cell_penalties(layer.cell)
 
 def _cell_penalties(rnn_cell):
 	cell = rnn_cell
-	penalties = []  # kernel-recurrent-bias
-
+	penalties = {}  # kernel-recurrent-bias
 	for weight_idx, weight_type in enumerate(['kernel', 'recurrent', 'bias']):
 		_lambda = getattr(cell, weight_type + '_regularizer', None)
 		if _lambda is not None:
 			weight_name = cell.weights[weight_idx].name
-			l1l2 = (float(_lambda.l1), float(_lambda.l2))
-			penalties.append([weight_name, l1l2])
+			penalties[weight_name] = (float(_lambda.l1), float(_lambda.l2))
 			_lambda.l1 = np.array(0., dtype=_lambda.l1.dtype)
 			_lambda.l2 = np.array(0., dtype=_lambda.l2.dtype)
 	return penalties

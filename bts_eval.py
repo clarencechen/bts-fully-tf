@@ -77,11 +77,11 @@ parser.add_argument('--batch_size',          type=int,   help='batch size per tr
 parser.add_argument('--num_gpus',            type=int,   help='number of GPUs to use for evaluation', default=1)
 parser.add_argument('--num_threads',         type=int,   help='number of threads to use for data loading', default=8)
 
-if sys.argv.__len__() == 2:
-	arg_filename_with_prefix = '@' + sys.argv[1]
-	args = parser.parse_args([arg_filename_with_prefix])
+if sys.argv.__len__() > 1 and sys.argv[1][0] != '-':
+	args = parser.parse_args(['@' + sys.argv[1]] + sys.argv[2:])
 else:
 	args = parser.parse_args()
+
 
 
 def get_num_lines(file_path):
@@ -93,7 +93,10 @@ def get_num_lines(file_path):
 
 def test(strategy, params):
 	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
-	tensorboard_log_dir = os.path.join(args.output_directory, args.model_name, 'tensorboard')
+	if not args.output_directory:
+		tensorboard_log_dir = os.path.join(args.output_directory, args.model_name, 'tensorboard')
+	else:
+		tensorboard_log_dir = os.path.join(args.checkpoint_path, args.model_name, 'tensorboard')
 
 	reader = BtsReader(params)
 	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)

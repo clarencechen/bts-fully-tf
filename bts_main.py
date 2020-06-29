@@ -98,9 +98,8 @@ parser.add_argument('--num_gpus',                  type=int,   help='number of G
 parser.add_argument('--num_threads',               type=int,   help='number of threads to use for data loading', default=8)
 
 
-if sys.argv.__len__() == 2:
-	arg_filename_with_prefix = '@' + sys.argv[1]
-	args = parser.parse_args([arg_filename_with_prefix])
+if sys.argv.__len__() > 1 and sys.argv[1][0] != '-':
+	args = parser.parse_args(['@' + sys.argv[1]] + sys.argv[2:])
 else:
 	args = parser.parse_args()
 

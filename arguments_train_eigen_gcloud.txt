@@ -16,7 +16,5 @@
 --do_kb_crop
 --do_random_rotate
 --degree 1.0
---log_directory gs://bts-tf2-model/
---checkpoint_path gs://bts-tf2-model/bts_eigen
 --pretrained_model ./models/densenet161_imagenet/weights.h5
 --fix_first_conv_blocks

@@ -3,8 +3,6 @@
 --dataset nyu
 --tfrecord_path gs://nyu-depth-v2/nyu-depth-v2-eval-compressed.tfrecord
 --filenames_file ./train_test_inputs/nyudepthv2_test_files_with_gt.txt
---output_directory gs://bts-tf2-model/
---checkpoint_path gs://bts-tf2-model/
 --input_height 480
 --input_width 640
 --max_depth 10

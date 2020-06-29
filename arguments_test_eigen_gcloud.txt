@@ -3,8 +3,6 @@
 --dataset kitti
 --tfrecord_path gs://nyu-depth-v2/kitti-eigen-eval-compressed.tfrecord
 --filenames_file ./train_test_inputs/eigen_test_files_with_gt.txt
---output_directory gs://bts-tf2-model/
---checkpoint_path gs://bts-tf2-model/
 --input_height 352
 --input_width 1216
 --max_depth 80

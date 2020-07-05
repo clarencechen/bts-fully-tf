@@ -19,7 +19,6 @@ from __future__ import absolute_import, division, print_function
 import os
 import numpy as np
 import argparse
-import time
 import tensorflow as tf
 import errno
 import matplotlib.pyplot as plt
@@ -27,13 +26,17 @@ import cv2
 import sys
 from tqdm import tqdm
 
-from bts_dataloader import *
+import tensorflow as tf
+from tensorflow.keras import callbacks
+
+from bts_dataloader import BtsReader, BtsDataloader
+from bts import bts_model
 
 def convert_arg_line_to_args(arg_line):
-    for arg in arg_line.split():
-        if not arg.strip():
-            continue
-        yield arg
+	for arg in arg_line.split():
+		if not arg.strip():
+			continue
+		yield arg
 
 
 parser = argparse.ArgumentParser(description='BTS TensorFlow implementation.', fromfile_prefix_chars='@')
@@ -50,174 +53,109 @@ parser.add_argument('--checkpoint_path',     type=str,   help='path to a specifi
 parser.add_argument('--dataset',             type=str,   help='dataset to train on, make3d or nyudepthv2', default='nyu')
 parser.add_argument('--do_kb_crop',                      help='if set, crop input images as kitti benchmark images', action='store_true')
 
-if sys.argv.__len__() == 2:
-    arg_filename_with_prefix = '@' + sys.argv[1]
-    args = parser.parse_args([arg_filename_with_prefix])
+if sys.argv.__len__() > 1 and sys.argv[1][0] != '-':
+	args = parser.parse_args(['@' + sys.argv[1]] + sys.argv[2:])
 else:
-    args = parser.parse_args()
-
-model_dir = os.path.dirname(args.checkpoint_path)
-sys.path.append(model_dir)
-
-for key, val in vars(__import__(args.model_name)).items():
-    if key.startswith('__') and key.endswith('__'):
-        continue
-    vars()[key] = val
-
+	args = parser.parse_args()
 
 def get_num_lines(file_path):
-    f = open(file_path, 'r')
-    lines = f.readlines()
-    f.close()
-    return len(lines)
-
+	f = open(file_path, 'r')
+	lines = f.readlines()
+	f.close()
+	return len(lines)
 
 def test(params):
-    """Test function."""
-    
-    dataloader = BtsDataloader(args.data_path, None, args.filenames_file, params, 'test', do_kb_crop=args.do_kb_crop)
+	"""Test function."""
+	
+	reader = BtsReader(params)
+	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)
 
-    dataloader_iter = dataloader.loader.make_initializable_iterator()
-    iter_init_op = dataloader_iter.initializer
-    image, focal = dataloader_iter.get_next()
+	loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, 'test')
+	loader = processor.process_dataset(loader, 'test')
+	
+	with tf.device('/cpu:0'):
+		model = bts_model(params, 'test')
+		loss = si_log_loss_wrapper(params.dataset)
+		model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
+		# Load checkpoint if set
+		print('Loading checkpoint at {}'.format(checkpoint_file))
+		model.load_weights(checkpoint_file, by_name=False).expect_partial()
+		print('Checkpoint successfully loaded')
+		model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
+					   callbacks.ProgbarLogger(count_mode='steps')]
 
-    model = BtsModel(params, 'test', image, None, focal=focal, bn_training=False)
+		model.summary()
 
-    # SESSION
-    config = tf.compat.v1.ConfigProto(allow_soft_placement=True)
-    sess = tf.compat.v1.Session(config=config)
+		num_test_samples = get_num_lines(args.filenames_file)
+		with open(args.filenames_file) as f:
+			lines = f.readlines()
+		print('Now testing {} files with {}'.format(num_test_samples, args.checkpoint_path))
+		
+		print('Processing images..')
+		pred_depths = model.predict(loader, verbose=1, callbacks=model_callbacks)
 
-    # INIT
-    sess.run(tf.compat.v1.global_variables_initializer())
-    sess.run(tf.compat.v1.local_variables_initializer())
-    coordinator = tf.train.Coordinator()
-    threads = tf.compat.v1.train.start_queue_runners(sess=sess, coord=coordinator)
+		save_name = 'result_{}'.format(args.model_name)
+		print('Saving result pngs..')
+		if not os.path.exists(os.path.dirname(save_name)):
+			try:
+				os.mkdir(save_name)
+				os.mkdir(os.path.join(save_name, 'raw'))
+				os.mkdir(os.path.join(save_name, 'cmap'))
+			except OSError as e:
+				if e.errno != errno.EEXIST:
+					raise
 
-    # SAVER
-    train_saver = tf.compat.v1.train.Saver()
-    
-    with tf.device('/cpu:0'):
-        restore_path = args.checkpoint_path
+		for s in tqdm(range(num_test_samples)):
+			if args.dataset == 'kitti':
+				date_drive = lines[s].split('/')[1]
+				filename_jpg = lines[s].split()[0].split('/')[-1]
+				path_png = os.path.join(save_name, 'raw', '{}_{}'.format(date_drive, filename_jpg.replace('.jpg', '.png')))
+				path_cmap_png = os.path.join(save_name, 'cmap', '{}_{}'.format(date_drive, filename_jpg.replace('.jpg', '.png')))
+			elif args.dataset == 'kitti_benchmark':
+				filename_jpg = lines[s].split()[0].split('/')[-1]
+				path_png = os.path.join(save_name, 'raw', filename_jpg.replace('.jpg', '.png'))
+				path_cmap_png = os.path.join(save_name, 'cmap', filename_jpg.replace('.jpg', '.png'))
+			else:
+				scene_name = lines[s].split()[0].split('/')[0]
+				filename_jpg = lines[s].split()[0].split('/')[1]
+				path_png = os.path.join(save_name, 'raw', '{}_{}'.format(scene_name, filename_jpg.replace('.jpg', '.png')))
+				path_cmap_png = os.path.join(save_name, 'cmap', '{}_{}'.format(scene_name, filename_jpg.replace('.jpg', '.png')))
 
-        # RESTORE
-        train_saver.restore(sess, restore_path)
+			pred_depth = pred_depths[s]
 
-        num_test_samples = get_num_lines(args.filenames_file)
+			if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
+				pred_depth_scaled = pred_depth * 256.0
+			else:
+				pred_depth_scaled = pred_depth * 1000.0
 
-        with open(args.filenames_file) as f:
-            lines = f.readlines()
+			pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
+			cv2.imwrite(path_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 
-        print('Now testing {} files with {}'.format(num_test_samples, args.checkpoint_path))
-        sess.run(iter_init_op)
+			if args.dataset == 'nyu':
+				pred_depth_cropped = np.zeros((480, 640), dtype=np.float32) + 1
+				pred_depth_cropped[10:-1 - 10, 10:-1 - 10] = pred_depth[10:-1 - 10, 10:-1 - 10]
+				plt.imsave(path_cmap_png, np.log10(pred_depth_cropped), cmap='Greys')
+			else:
+				plt.imsave(path_cmap_png, np.log10(pred_depth), cmap='Greys')
 
-        pred_depths = []
-        pred_8x8s = []
-        pred_4x4s = []
-        pred_2x2s = []
-
-        start_time = time.time()
-        print('Processing images..')
-        for s in tqdm(range(num_test_samples)):
-            depth, pred_8x8, pred_4x4, pred_2x2 = sess.run([model.depth_est, model.depth_8x8, model.depth_4x4, model.depth_2x2])
-            pred_depths.append(depth[0].squeeze())
-
-            pred_8x8s.append(pred_8x8[0].squeeze())
-            pred_4x4s.append(pred_4x4[0].squeeze())
-            pred_2x2s.append(pred_2x2[0].squeeze())
-
-        print('Done.')
-
-        save_name = 'result_' + args.model_name
-
-        print('Saving result pngs..')
-        if not os.path.exists(os.path.dirname(save_name)):
-            try:
-                os.mkdir(save_name)
-                os.mkdir(save_name + '/raw')
-                os.mkdir(save_name + '/cmap')
-                os.mkdir(save_name + '/rgb')
-            except OSError as e:
-                if e.errno != errno.EEXIST:
-                    raise
-
-        for s in tqdm(range(num_test_samples)):
-            if args.dataset == 'kitti':
-                date_drive = lines[s].split('/')[1]
-                filename_png = save_name + '/raw/' + date_drive + '_' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
-                filename_cmap_png = save_name + '/cmap/' + date_drive + '_' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
-                filename_image_png = save_name + '/rgb/' + date_drive + '_' + lines[s].split()[0].split('/')[-1]
-            elif args.dataset == 'kitti_benchmark':
-                filename_png = save_name + '/raw/' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
-                filename_cmap_png = save_name + '/cmap/' + lines[s].split()[0].split('/')[-1].replace('.jpg', '.png')
-                filename_image_png = save_name + '/rgb/' + lines[s].split()[0].split('/')[-1]
-            else:
-                scene_name = lines[s].split()[0].split('/')[0]
-                filename_png = save_name + '/raw/' + scene_name + '_' + lines[s].split()[0].split('/')[1].replace('.jpg', '.png')
-                filename_cmap_png = save_name + '/cmap/' + scene_name + '_' + lines[s].split()[0].split('/')[1].replace('.jpg', '.png')
-                filename_image_png = save_name + '/rgb/' + scene_name + '_' + lines[s].split()[0].split('/')[1]
-
-            rgb_path = os.path.join(args.data_path, lines[s].split()[0])
-            image = cv2.imread(rgb_path)
-            pred_depth = pred_depths[s]
-            pred_8x8 = pred_8x8s[s]
-            pred_4x4 = pred_4x4s[s]
-            pred_2x2 = pred_2x2s[s]
-
-            if args.dataset == 'kitti' or args.dataset == 'kitti_benchmark':
-                pred_depth_scaled = pred_depth * 256.0
-            else:
-                pred_depth_scaled = pred_depth * 1000.0
-
-            pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
-            cv2.imwrite(filename_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
-
-            cv2.imwrite(filename_image_png, image)
-            if args.dataset == 'nyu':
-                pred_depth_cropped = np.zeros((480, 640), dtype=np.float32) + 1
-                pred_depth_cropped[10:-1 - 10, 10:-1 - 10] = pred_depth[10:-1 - 10, 10:-1 - 10]
-                plt.imsave(filename_cmap_png, np.log10(pred_depth_cropped), cmap='Greys')
-                pred_8x8_cropped = np.zeros((480, 640), dtype=np.float32) + 1
-                pred_8x8_cropped[10:-1 - 10, 10:-1 - 10] = pred_8x8[10:-1 - 10, 10:-1 - 10]
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_8x8.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_8x8_cropped), cmap='Greys')
-                pred_4x4_cropped = np.zeros((480, 640), dtype=np.float32) + 1
-                pred_4x4_cropped[10:-1 - 10, 10:-1 - 10] = pred_4x4[10:-1 - 10, 10:-1 - 10]
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_4x4.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_4x4_cropped), cmap='Greys')
-                pred_2x2_cropped = np.zeros((480, 640), dtype=np.float32) + 1
-                pred_2x2_cropped[10:-1 - 10, 10:-1 - 10] = pred_2x2[10:-1 - 10, 10:-1 - 10]
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_2x2.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_2x2_cropped), cmap='Greys')
-            else:
-                plt.imsave(filename_cmap_png, np.log10(pred_depth), cmap='Greys')
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_8x8.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_8x8), cmap='Greys')
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_4x4.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_4x4), cmap='Greys')
-                filename_lpg_cmap_png = filename_cmap_png.replace('.png', '_2x2.png')
-                plt.imsave(filename_lpg_cmap_png, np.log10(pred_2x2), cmap='Greys')
-
-        return
+		return
 
 
-def main(_):
-    
-    params = bts_parameters(
-        encoder=args.encoder,
-        height=args.input_height,
-        width=args.input_width,
-        batch_size=None,
-        dataset=args.dataset,
-        max_depth=args.max_depth,
-        num_gpus=None,
-        num_threads=None,
-        num_epochs=None)
+def main():
+	
+	params = bts_parameters(
+		encoder=args.encoder,
+		height=args.input_height,
+		width=args.input_width,
+		batch_size=None,
+		dataset=args.dataset,
+		max_depth=args.max_depth,
+		num_gpus=None,
+		num_threads=None,
+		num_epochs=None)
 
-    test(params)
+	test(params)
 
 
 if __name__ == '__main__':
-    tf.compat.v1.app.run()
-
-
-
+	main()

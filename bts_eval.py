@@ -82,14 +82,11 @@ if sys.argv.__len__() > 1 and sys.argv[1][0] != '-':
 else:
 	args = parser.parse_args()
 
-
-
 def get_num_lines(file_path):
 	f = open(file_path, 'r')
 	lines = f.readlines()
 	f.close()
 	return len(lines)
-
 
 def test(strategy, params):
 	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')

@@ -72,14 +72,13 @@ parser.add_argument('--input_width',               type=int,   help='input width
 parser.add_argument('--max_depth',                 type=float, help='maximum depth in estimation', default=80)
 
 # Log and save
-parser.add_argument('--log_directory',             type=str,   help='directory to save checkpoints and summaries', default='')
-parser.add_argument('--checkpoint_path',           type=str,   help='path to a checkpoint to load', default='')
+parser.add_argument('--log_directory',             type=str,   help='directory to load and save checkpoints and summaries', default='')
 parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='')
 
 # Model Hyperparams
 parser.add_argument('--fix_first_conv_blocks',                 help='if set, will fix the first two conv blocks', action='store_true')
 parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')
-parser.add_argument('--retrain',                               help='if used with checkpoint_path, will restart training from step zero', action='store_true')
+parser.add_argument('--retrain',                               help='if a checkpoint is found in log_directory, will restart training from step zero', action='store_true')
 
 # Training Hyperparams
 parser.add_argument('--batch_size',                type=int,   help='batch size per training replica', default=4)
@@ -122,7 +121,7 @@ def train(strategy, params):
 	print("Total number of steps: {}".format(total_steps))
 
 	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard')
-	model_save_dir = os.path.join(args.log_directory, args.model_name, 'checkpoint')
+	checkpoint_path = os.path.join(args.log_directory, args.model_name, 'checkpoint')
 
 	# Scale batch size and learning rate by number of distributed training cores
 	start_lr = args.learning_rate * strategy.num_replicas_in_sync
@@ -154,14 +153,11 @@ def train(strategy, params):
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer=opt, loss=loss)
 
-		# Load checkpoint if set
 		initial_epoch = 0
-		if args.checkpoint_path != '':
-			checkpoint_file = os.path.join(args.checkpoint_path, 'checkpoint')
-			print('Loading checkpoint at {}'.format(checkpoint_file))
-			model.load_weights(checkpoint_file, by_name=False)
-			if not args.retrain:
-				initial_epoch = model.optimizer.iterations.value() // steps_per_epoch
+		if not args.retrain and tf.io.gfile.exists(checkpoint_path):
+			print('Loading checkpoint at {}'.format(checkpoint_path))
+			model.load_weights(checkpoint_path, by_name=False)
+			initial_epoch = model.optimizer.iterations.value() // steps_per_epoch
 			print('Checkpoint successfully loaded')
 
 	model.summary()
@@ -170,7 +166,7 @@ def train(strategy, params):
 							log_dir=tensorboard_log_dir, profile_batch=0),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.ProgbarLogger(count_mode='steps'),
-					   callbacks.ModelCheckpoint(model_save_dir,
+					   callbacks.ModelCheckpoint(checkpoint_path,
 							monitor='loss', mode='auto', verbose=1,
 							save_best_only=True, save_weights_only=True)]
 
@@ -181,7 +177,7 @@ def train(strategy, params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save_weights(model_save_dir, save_format='tf')
+	model.save_weights(checkpoint_path, save_format='tf')
 
 	print('{} training finished at {}'.format(args.model_name, datetime.datetime.now()))
 

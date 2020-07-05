@@ -40,7 +40,7 @@ Once the preparation steps completed, you can evaluate BTS using following comma
 $ cd ~/workspace/bts-fully-tf/
 $ mkdir ./models/; mkdir ./models/bts_nyu/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_nyu/* ./models/bts_nyu/
-$ python bts_test.py arguments_test_nyu.txt --args.checkpoint_path ./models/
+$ python bts_test.py arguments_test_nyu.txt --checkpoint_path ./models/
 ```
 You should see outputs like this:
 ```

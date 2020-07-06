@@ -47,7 +47,7 @@ You should see outputs like this:
 Now testing 654 images.
 81/81 [==============================] - 44s 546ms/step
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
-13.1296,  0.1275,   0.055,   0.451,   0.083,   0.163,   0.843,   0.970,   0.994
+12.8351,  0.1245,   0.053,   0.434,   0.082,   0.158,   0.855,   0.971,   0.993
 ```
 Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
 
@@ -68,7 +68,7 @@ You should see outputs like this:
 Now testing 652 images.
 81/81 [==============================] - 59s 722ms/step
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
-10.8551,  0.0745,   0.033,   3.292,   0.343,   0.117,   0.934,   0.988,   0.997
+10.5369,  0.0743,   0.032,   3.254,   0.507,   0.115,   0.937,   0.988,   0.997
 ```
 Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
 

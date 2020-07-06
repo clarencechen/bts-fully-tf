@@ -26,9 +26,9 @@ except ImportError:
 	from tensorflow.keras import initializers as initializations
 import tensorflow.keras.backend as K
 
-class LocalPlanarGuidance(layers.Conv2D):
+class LocalPlanarGuidance(layers.Layer):
 	def __init__(self, height, width, upratio, **kwargs):
-		super(LocalPlanarGuidance, self).__init__(filters=3, kernel_size=1, dilation_rate=1, padding='same', activation='sigmoid', use_bias=False, **kwargs)
+		super(LocalPlanarGuidance, self).__init__(**kwargs)
 		self.full_height = height
 		self.full_width = width
 		self.upratio = upratio
@@ -50,9 +50,8 @@ class LocalPlanarGuidance(layers.Conv2D):
 		return super(LocalPlanarGuidance, self).build(input_shape)
 
 	def call(self, inputs):
-		conv_sigmoid = super(LocalPlanarGuidance, self).call(inputs)
 		# Decrease max value of theta to pi/3 to enhance numerical stability
-		phi, theta, raw_dist = conv_sigmoid[..., 0] * 2 * pi, conv_sigmoid[..., 1] * pi / 3, conv_sigmoid[..., 2]
+		phi, theta, raw_dist = inputs[..., 0] * 2 * pi, inputs[..., 1] * pi / 3, inputs[..., 2]
 		plane_coeffs = K.stack([K.sin(theta) * K.cos(phi), K.sin(theta) * K.sin(phi), K.cos(theta), raw_dist], axis=-1)
 		
 		plane_exp_height = K.repeat_elements(plane_coeffs, self.upratio, axis=1)

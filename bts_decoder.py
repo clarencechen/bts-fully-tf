@@ -76,19 +76,22 @@ def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filter
 	concat4_daspp = layers.Concatenate(axis=3)([iconv4_bn, daspp_3, daspp_6, daspp_12, daspp_18, daspp_24])
 	daspp_feat = layers.Conv2D(num_filters // 2, kernel_size=3, strides=1, padding='same', activation='elu', use_bias=False)(concat4_daspp)
 
-	depth_8x8_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=8, name='depth_8x8_scaled')(daspp_feat)
+	reduction_8x8 = layers.Conv2D(3, kernel_size=1, strides=1, padding='same', activation='sigmoid', use_bias=False)(daspp_feat)
+	depth_8x8_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=8, name='depth_8x8_scaled')(reduction_8x8)
 	depth_8x8_scaled_ds = layers.Lambda(lambda x : x[:, ::4, ::4, ...])(depth_8x8_scaled) # Downsampling Layer
 
 	num_filters = num_filters // 2
 	iconv3 = conv_block(daspp_feat, skip_4, depth_8x8_scaled_ds, num_filters) # H/4		
 
-	depth_4x4_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=4, name='depth_4x4_scaled')(iconv3)
+	reduction_4x4 = layers.Conv2D(3, kernel_size=1, strides=1, padding='same', activation='sigmoid', use_bias=False)(iconv3)
+	depth_4x4_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=4, name='depth_4x4_scaled')(reduction_4x4)
 	depth_4x4_scaled_ds = layers.Lambda(lambda x : x[:, ::2, ::2, ...])(depth_4x4_scaled) # Downsampling Layer
 
 	num_filters = num_filters // 2
 	iconv2 = conv_block(iconv3, skip_2, depth_4x4_scaled_ds, num_filters) # H/2
 
-	depth_2x2_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=2, name='depth_2x2_scaled')(iconv2)
+	reduction_2x2 = layers.Conv2D(3, kernel_size=1, strides=1, padding='same', activation='sigmoid', use_bias=False)(iconv2)
+	depth_2x2_scaled = LocalPlanarGuidance(height=full_height, width=full_width, upratio=2, name='depth_2x2_scaled')(reduction_2x2)
 
 	num_filters = num_filters // 2
 	upsample1 = layers.UpSampling2D(size=2, interpolation='nearest')(iconv2)

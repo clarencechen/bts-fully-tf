@@ -41,6 +41,7 @@ parser.add_argument('--focal',           type=float, help='focal length in pixel
 parser.add_argument('--image_path',      type=str,   help='image sequence path', required=True)
 parser.add_argument('--out_path',        type=str,   help='output path', required=True)
 parser.add_argument('--checkpoint_path', type=str,   help='path to a checkpoint to load', required=True)
+parser.add_argument('--batch_size',          type=int,   help='batch size per training replica', default=1)
 parser.add_argument('--input_height',    type=int,   help='input height', default=480)
 parser.add_argument('--input_width',     type=int,   help='input width',  default=640)
 

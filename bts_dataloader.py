@@ -26,6 +26,20 @@ class BtsReader(object):
 		self.params = params
 
 	def read_from_image_files(self, data_path, gt_path, filenames_file, mode='train', shuffle_dataset=True):
+		
+		def read_decode_predict(line):
+			split_line = tf.strings.split([line]).values
+			image_path = tf.strings.join([data_path, split_line[0]])
+			im_data = tf.io.read_file(image_path)
+			image = tf.image.decode_jpeg(im_data)
+			#if self.params.dataset == 'kitti':
+			#	focal = tf.strings.to_number(split_line[1])
+				# Normalize ground truth depth map to focal length of each example in KITTI Eigen train set
+			#	depth_gt /= focal / 715.0873
+
+			image = tf.image.convert_image_dtype(image, tf.float32)
+			return image
+
 		def read_decode_test(line):
 			split_line = tf.strings.split([line]).values
 			image_path = tf.strings.join([data_path, split_line[0]])
@@ -78,8 +92,10 @@ class BtsReader(object):
 			if shuffle_dataset:
 				loader = loader.repeat().shuffle(len(filenames))
 			loader = loader.map(read_decode_train, num_parallel_calls=self.params.num_threads)
-		else:
+		elif mode == 'test':
 			loader = loader.map(read_decode_test, num_parallel_calls=self.params.num_threads)
+		else:
+			loader = loader.map(read_decode_predict, num_parallel_calls=self.params.num_threads)
 
 		return loader
 
@@ -96,12 +112,11 @@ class BtsReader(object):
 			loader = tf.data.TFRecordDataset([tf_record_file],
 				compression_type="GZIP",
 				num_parallel_reads=num_data_workers)
+
 		if mode == 'train':
 			loader = loader.repeat().shuffle(num_examples)
-			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
-		else:
-			loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
-		
+
+		loader = loader.map(lambda x: tf.io.parse_tensor(x, tf.float32), num_parallel_calls=num_data_workers)
 		return loader
 
 
@@ -123,6 +138,13 @@ class BtsDataloader(object):
 		image = image[top_margin:top_margin + 352, left_margin:left_margin + 1216, :]
 
 		return image
+
+	def predict_preprocess(self, batch):
+		batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
+		batch = batch * 255.0 - self.image_mean
+		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
+			batch *= 0.017
+		return batch
 
 	def test_preprocess(self, batch):
 		image_batch, depth_gt_batch = batch[..., 0:3], batch[..., 3:4]
@@ -195,6 +217,9 @@ class BtsDataloader(object):
 			if self.do_kb_crop is True:
 				loader = loader.map(self.dataset_crop_test, num_parallel_calls=num_data_workers)
 			loader = loader.batch(self.params.batch_size, drop_remainder=self.params.use_tpu)
-			loader = loader.map(self.test_preprocess, num_parallel_calls=num_data_workers)
+			if mode == 'test':
+				loader = loader.map(self.test_preprocess, num_parallel_calls=num_data_workers)
+			else:
+				loader = loader.map(self.predict_preprocess, num_parallel_calls=num_data_workers)
 			loader = loader.prefetch(tf.data.experimental.AUTOTUNE)
 		return loader

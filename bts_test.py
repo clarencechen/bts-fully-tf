@@ -26,11 +26,22 @@ import cv2
 import sys
 from tqdm import tqdm
 
+from collections import namedtuple
+
+bts_parameters = namedtuple('parameters', 'encoder, '
+										  'height, width, '
+										  'max_depth, '
+										  'batch_size, '
+										  'dataset, '
+										  'num_threads, '
+										  'num_epochs, '
+										  'use_tpu, ')
+
 import tensorflow as tf
 from tensorflow.keras import callbacks
 
 from bts_dataloader import BtsReader, BtsDataloader
-from bts import bts_model
+from bts import bts_model, si_log_loss_wrapper
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -44,12 +55,15 @@ parser.convert_arg_line_to_args = convert_arg_line_to_args
 
 parser.add_argument('--model_name',          type=str,   help='model name', default='bts_nyu_test')
 parser.add_argument('--encoder',             type=str,   help='type of encoder, vgg or desenet121_bts or densenet161_bts', default='densenet161_bts')
-parser.add_argument('--data_path',           type=str,   help='path to the data', required=True)
+parser.add_argument('--data_path',           type=str,   help='path to the data')
+parser.add_argument('--tfrecord_path',       type=str,   help='path to the combined TFRecord dataset in zip format')
+parser.add_argument('--tfrecord_shards',     type=int,   help='number of shards of the combined TFRecord dataset to read', default=1)
 parser.add_argument('--filenames_file',      type=str,   help='path to the filenames text file', required=True)
 parser.add_argument('--input_height',        type=int,   help='input height', default=480)
 parser.add_argument('--input_width',         type=int,   help='input width', default=640)
 parser.add_argument('--max_depth',           type=float, help='maximum depth in estimation', default=80)
 parser.add_argument('--checkpoint_path',     type=str,   help='path to a specific checkpoint to load', default='')
+parser.add_argument('--batch_size',          type=int,   help='batch size per training replica', default=1)
 parser.add_argument('--dataset',             type=str,   help='dataset to train on, make3d or nyudepthv2', default='nyu')
 parser.add_argument('--do_kb_crop',                      help='if set, crop input images as kitti benchmark images', action='store_true')
 
@@ -66,23 +80,25 @@ def get_num_lines(file_path):
 
 def test(params):
 	"""Test function."""
+	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
 	
 	reader = BtsReader(params)
 	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)
 
-	loader = reader.read_from_image_files(args.data_path, args.gt_path, args.filenames_file, 'test')
-	loader = processor.process_dataset(loader, 'test')
+	if args.tfrecord_path is None or args.tfrecord_path == '':
+		loader = reader.read_from_image_files(args.data_path, None, args.filenames_file, 'predict')
+	else:
+		loader = reader.read_from_tf_record(args.tfrecord_path, args.filenames_file, 'predict', args.tfrecord_shards)
+	loader = processor.process_dataset(loader, 'predict')
 	
 	with tf.device('/cpu:0'):
-		model = bts_model(params, 'test')
-		loss = si_log_loss_wrapper(params.dataset)
-		model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
+		model = bts_model(params, 'predict')
+		model.compile(optimizer='adam', loss=None)
 		# Load checkpoint if set
 		print('Loading checkpoint at {}'.format(checkpoint_file))
 		model.load_weights(checkpoint_file, by_name=False).expect_partial()
 		print('Checkpoint successfully loaded')
-		model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
-					   callbacks.ProgbarLogger(count_mode='steps')]
+		model_callbacks = [callbacks.ProgbarLogger(count_mode='steps')]
 
 		model.summary()
 
@@ -147,12 +163,12 @@ def main():
 		encoder=args.encoder,
 		height=args.input_height,
 		width=args.input_width,
-		batch_size=None,
+		batch_size=args.batch_size,
 		dataset=args.dataset,
 		max_depth=args.max_depth,
-		num_gpus=None,
 		num_threads=None,
-		num_epochs=None)
+		num_epochs=None,
+		use_tpu=False)
 
 	test(params)
 

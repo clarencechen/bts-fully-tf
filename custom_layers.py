@@ -34,18 +34,17 @@ class LocalPlanarGuidance(layers.Layer):
 		self.upratio = upratio
 
 	def build(self, input_shape):
-		self.batch_size = input_shape[0]
 		v, u = tf.meshgrid(
 			np.linspace(0, self.full_width -1, self.full_width, dtype=np.float32), 
 			np.linspace(0, self.full_height -1, self.full_height, dtype=np.float32))
 
-		v = K.expand_dims(K.stack([v]*self.batch_size, axis=0), axis=-1)
-		v = (v % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1, 1)) # V2 Update
+		v = K.expand_dims(v, axis=0)
+		v = (v % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1)) # V2 Update
 
-		u = K.expand_dims(K.stack([u]*self.batch_size, axis=0), axis=-1)
-		u = (u % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1, 1)) # V2 Update
+		u = K.expand_dims(u, axis=0)
+		u = (u % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1)) # V2 Update
 
-		self.pixel_dir_unit = K.l2_normalize(K.concatenate([u, v, K.ones_like(u)], axis=3), axis=3) # Normalize first
+		self.pixel_dir_unit = K.l2_normalize(K.stack([u, v, K.ones_like(u)], axis=-1), axis=3) # Normalize first
 
 		return super(LocalPlanarGuidance, self).build(input_shape)
 

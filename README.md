@@ -7,14 +7,14 @@ This repository is a TensorFlow implementation of the BTS Depth Estimation model
 # TODO
 
 ## High Priority
- - Direct prediction of depth maps to saved PNG images
- - Web server with live demo of results using Flask or node.js
+ [*] Direct prediction of depth maps to saved PNG images
+ [] Web server with live demo of results using Flask or node.js
 
 ## Medium Priority
- - Additional image classification backbone models using `tf.keras.applications`
- - Random image rotation in the data preprocessing pipeline when training on TPU
- - Validation split and hyperparameter tuning using optuna
- - Depth map output in Tensorboard using validation split above
+ [] Additional image classification backbone models using `tf.keras.applications`
+ [] Random image rotation in the data preprocessing pipeline when training on TPU
+ [] Validation split and hyperparameter tuning using optuna
+ [] Depth map output in Tensorboard using validation split above
 
 ## Low priority
  - Support parallelized tfrecord sharding in `bts_convert_data.py`
@@ -40,7 +40,7 @@ Once the preparation steps completed, you can evaluate BTS using following comma
 $ cd ~/workspace/bts-fully-tf/
 $ mkdir ./models/; mkdir ./models/bts_nyu/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_nyu/* ./models/bts_nyu/
-$ python bts_test.py arguments_test_nyu.txt --checkpoint_path ./models/
+$ python bts_test.py args/test_nyu.txt --checkpoint_path ./models/
 ```
 You should see outputs like this:
 ```
@@ -61,7 +61,7 @@ Once you have KITTI dataset and official ground truth depthmaps, you can test an
 $ cd ~/workspace/bts
 $ mkdir ./models/; mkdir ./models/bts_eigen/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_eigen/* ./models/bts_eigen/
-$ python bts_test.py arguments_test_eigen.txt --checkpoint_path ./models/
+$ python bts_test.py args/test_eigen.txt --checkpoint_path ./models/
 ```
 You should see outputs like this:
 ```
@@ -87,7 +87,7 @@ $ ./init_nyu_train_files.sh
 If you want to train this model on a TPU, you must use a Google Cloud Storage Bucket to store this dataset in tfrecord format due to data pipeline speed constraints for TPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python convert_data.py arguments_convert_nyu.txt
+$ python convert_data.py args/convert_nyu.txt
 $ gcloud config set project {project_id}
 $ gsutil cp nyu-depth-v2-compressed.tfrecord gs://{bucket_name}/
 $ rm nyu-depth-v2-compressed.tfrecord
@@ -120,11 +120,11 @@ If you want to train this model on a TPU, please convert the dataset to the tfre
 Once the dataset is ready, you can train the network using the following command for GPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python bts_main.py arguments_train_nyu.txt --log_directory ./models/
+$ python bts_train.py args/train_nyu.txt --log_directory ./models/
 ```
 If you are training the network on a TPU or wish to use a Google Storage Bucket to store the training data, please use this command instead.
 ```
-$ python bts_main.py arguments_train_nyu_gcloud.txt --log_directory gs://{bucket_name}/
+$ python bts_train.py args/train_nyu_gcloud.txt --log_directory gs://{bucket_name}/
 ```
 You can check the training using Tensorboard with logs either stored in a local directory:
 ```
@@ -147,7 +147,7 @@ $ ./init_kitti_files.sh
 If you want to train this model on a TPU, you must use a Google Cloud Storage Bucket to store this dataset in tfrecord format due to data pipeline speed constraints for TPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python convert_data.py arguments_convert_eigen.txt
+$ python convert_data.py args/convert_eigen.txt
 $ gcloud config set project {project_id}
 $ gsutil -m cp kitti-eigen-sync-compressed.tfrecord_* gs://{bucket_name}/
 $ rm kitti-eigen-sync-compressed.tfrecord
@@ -155,11 +155,11 @@ $ rm kitti-eigen-sync-compressed.tfrecord
 Finally, we can train our network with the following command for GPU training.
 ```
 $ cd ~/workspace/bts-fully-tf/
-$ python bts_main.py arguments_train_eigen.txt --log_directory ./models/
+$ python bts_train.py args/train_eigen.txt --log_directory ./models/
 ```
 If you are training the network on a TPU or wish to use a Google Storage Bucket to store the training data, please use this command instead.
 ```
-$ python bts_main.py arguments_train_eigen_gcloud.txt --log_directory gs://{bucket_name}/
+$ python bts_train.py args/train_eigen_gcloud.txt --log_directory gs://{bucket_name}/
 ```
 
 ## License

@@ -150,6 +150,7 @@ def test(params):
 			if args.dataset == 'nyu':
 				pred_depth_cropped = np.zeros((480, 640), dtype=np.float32) + 1
 				pred_depth_cropped[10:-1 - 10, 10:-1 - 10] = pred_depth[10:-1 - 10, 10:-1 - 10]
+				pred_depth_cropped *= 256 / args.max_depth
 				cv2.imwrite(path_cmap_png, pred_depth_cropped, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 			else:
 				cv2.imwrite(path_cmap_png, pred_depth, [cv2.IMWRITE_PNG_COMPRESSION, 0])

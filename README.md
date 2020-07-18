@@ -7,14 +7,14 @@ This repository is a TensorFlow implementation of the BTS Depth Estimation model
 # TODO
 
 ## High Priority
- [*] Direct prediction of depth maps to saved PNG images
- [] Web server with live demo of results using Flask or node.js
+- [*] Direct prediction of depth maps to saved PNG images
+- [] Web server with live demo of results using Flask or node.js
 
 ## Medium Priority
- [] Additional image classification backbone models using `tf.keras.applications`
- [] Random image rotation in the data preprocessing pipeline when training on TPU
- [] Validation split and hyperparameter tuning using optuna
- [] Depth map output in Tensorboard using validation split above
+- [] Additional image classification backbone models using `tf.keras.applications`
+- [] Random image rotation in the data preprocessing pipeline when training on TPU
+- [] Validation split and hyperparameter tuning using optuna
+- [] Depth map output in Tensorboard using validation split above
 
 ## Low priority
  - Support parallelized tfrecord sharding in `bts_convert_data.py`

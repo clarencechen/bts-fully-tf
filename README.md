@@ -24,10 +24,12 @@ From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimat
 [arXiv](https://arxiv.org/abs/1907.10326)  
 [Supplementary material](https://arxiv.org/src/1907.10326v4/anc/bts_sm.pdf) 
 
-## Video Demo 1
-[![Screenshot](https://img.youtube.com/vi/2fPdZYzx9Cg/maxresdefault.jpg)](https://www.youtube.com/watch?v=2fPdZYzx9Cg)
-## Video Demo 2
-[![Screenshot](https://img.youtube.com/vi/1J-GSb0fROw/maxresdefault.jpg)](https://www.youtube.com/watch?v=1J-GSb0fROw)
+## Demo Depthmap/Photo 1
+![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/0000000140.png)
+![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/2011_09_26_drive_0013_sync_0000000140.png)
+## Demo Depthmap/Photo 2
+![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/0000000000.png)
+![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/2011_09_26_drive_0046_sync_0000000000.png)
 
 ## Evaluation with [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 ```shell

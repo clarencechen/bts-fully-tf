@@ -37,6 +37,7 @@ class AdamWBase(keras.optimizers.Optimizer):
 	def __init__(
 			self,
 			lr=1e-3,  # may be None
+			batch_size=None, # may be None
 			decay_var_list=None, # may be None
 			beta1=0.9,
 			beta2=None,
@@ -51,6 +52,7 @@ class AdamWBase(keras.optimizers.Optimizer):
 			self._lr_tensor = K.variable(self._lr, name='lr')
 		else:
 			self._lr_tensor = K.variable(0.01, name='lr')
+		self.batch_size = batch_size
 		self.decay_var_list = decay_var_list or {}
 		self.beta1 = beta1
 		self._beta2 = beta2
@@ -107,18 +109,21 @@ class AdamW(AdamWBase):
 				self.add_slot(var, 'm')
 			self.add_slot(var, 'v')
 
-	def _apply_weight_decays(self, u):
-		norm = K.cast(K.sqrt(self.batch_size / self.iterations), K.floatx())
-		if l1 != 0 and l2 != 0:
-			decay = l1 * K.sign(var) + l2 * var
-		elif l1 != 0:
-			decay = l1 * K.sign(var)
-		else:
-			decay = l2 * var
-		u = u - norm * decay
-		return u
 
 	def _resource_apply_dense(self, grad, var):
+
+		def _apply_weight_decays(u):
+			iterations = K.cast(self.iterations + 1, K.floatx())
+			norm = K.cast(K.sqrt(self.batch_size / iterations), K.floatx())
+			if l1 != 0 and l2 != 0:
+				decay = l1 * K.sign(var) + l2 * var
+			elif l1 != 0:
+				decay = l1 * K.sign(var)
+			else:
+				decay = l2 * var
+			u = u - norm * decay
+			return u
+
 		g2 = K.square(grad) +K.square(K.epsilon())
 		v = self.get_slot(var, 'v')
 		# Define aux variable
@@ -144,7 +149,7 @@ class AdamW(AdamWBase):
 		if var.name in self.decay_var_list.keys():
 			l1, l2 = self.decay_var_list[var.name]
 			if l1 != 0 or l2 != 0:
-				u = self._apply_weight_decays(u)
+				u = _apply_weight_decays(u)
 		# Update parameters
 		return K.update(var, var - self.lr * u)
 

@@ -149,7 +149,7 @@ def train(strategy, params):
 											 fix_first_two=args.fix_first_conv_blocks, 
 											 pretrained_weights_path=args.pretrained_model)
 		wd_dict = get_weight_decays(model)
-		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=args.adam_eps)
+		opt = AdamW(lr=start_lr, batch_size=params.batch_size, decay_var_list=wd_dict, epsilon=args.adam_eps)
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer=opt, loss=loss)
 

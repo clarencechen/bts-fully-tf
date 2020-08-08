@@ -14,144 +14,61 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>
 
-import os, sys
+from __future__ import absolute_import, division, print_function
+
 import numpy as np
 import tensorflow as tf
+import tensorflow.keras.backend as K
 
-# Using tf.keras in this case
-is_tf_keras = True
+class AdamW(tf.keras.optimizers.Adam):
+	r"""Implements AdamW algorithm.
 
-if is_tf_keras:
-	import tensorflow.keras as keras
-	import tensorflow.keras.backend as K
-	sys.modules['keras'] = keras
-else:
-	import keras
-	import keras.backend as K
+	The original Adam algorithm was proposed in `Adam: A Method for Stochastic Optimization`_.
+	The AdamW variant was proposed in `Decoupled Weight Decay Regularization`_.
 
+	Arguments:
+		decay_var_list (dict, optional): dictionary mapping weight names to 
+			two-element tuples of L1 and L2 weight decay coefficients in that order
+			(default: {})
 
-class AdamWBase(keras.optimizers.Optimizer):
-	"""AdamW optmizer with beta2 schedule, parameter scaling, and update clipping (Base Class)
-	Link to paper: https://arxiv.org/abs/1711.05101
+	.. _Adam\: A Method for Stochastic Optimization:
+		https://arxiv.org/abs/1412.6980
+	.. _Decoupled Weight Decay Regularization:
+		https://arxiv.org/abs/1711.05101
+	.. _On the Convergence of Adam and Beyond:
+		https://openreview.net/forum?id=ryQu7f-RZ
 	"""
-	def __init__(
-			self,
-			lr=1e-3,  # may be None
-			decay_var_list=None, # may be None
-			beta1=0.9,
-			beta2=None,
-			epsilon=1e-7,
-			epsilon_param_scale=1e-3,
-			multiply_by_parameter_scale=True,
-			clipping_threshold=1.0,
-			**kwargs):
-		super(AdamWBase, self).__init__(**kwargs)
-		self._lr = lr
-		if self._lr is not None:
-			self._lr_tensor = K.variable(self._lr, name='lr')
-		else:
-			self._lr_tensor = K.variable(0.01, name='lr')
+
+	def __init__(self, decay_var_list=None, name='AdamW', **kwargs):
+		super(AdamW, self).__init__(name=name, **kwargs)
 		self.decay_var_list = decay_var_list or {}
-		self.beta1 = beta1
-		self._beta2 = beta2
-		self.epsilon = epsilon
-		self.epsilon_param_scale = epsilon_param_scale
-		self.multiply_by_parameter_scale = multiply_by_parameter_scale
-		self.clipping_threshold = clipping_threshold
 
-	@property
-	def lr(self):
-		if self._lr is None:
-			iterations = K.cast(self.iterations + 1, K.floatx())
-			lr_value = K.minimum(1.0 / K.sqrt(iterations), 0.01)
-			if self.multiply_by_parameter_scale:
-				K.update(self._lr_tensor, lr_value)
-			else:
-				K.update(self._lr_tensor, lr_value * 0.05)
-		return self._lr_tensor
-
-	@property
-	def beta2(self):
-		if self._beta2 is None:
-			iterations = K.cast(self.iterations + 1, K.floatx())
-			return 1.0 - K.pow(iterations, -0.8)
-		else:
-			return self._beta2
-
-	def get_config(self):
-		config = {
-			'lr': self._lr,
-			'beta1': self.beta1,
-			'beta2': self._beta2,
-			'epsilon': self.epsilon,
-			'epsilon_param_scale': self.epsilon_param_scale,
-			'decay_var_list': self.decay_var_list,
-			'multiply_by_parameter_scale': self.multiply_by_parameter_scale,
-			'clipping_threshold': self.clipping_threshold,
-		}
-		base_config = super(AdamWBase, self).get_config()
-		return dict(list(base_config.items()) + list(config.items()))
-
-class AdamW(AdamWBase):
-	"""AdamW optmizer with beta2 schedule, parameter scaling, and update clipping (tf.keras version)
-	Link to paper: https://arxiv.org/abs/1711.05101
-	"""
-	def __init__(self, *args, **kwargs):
-		if 'name' not in kwargs:
-			kwargs['name'] = 'AdamW'
-		super(AdamW, self).__init__(*args, **kwargs)
-
-	def _create_slots(self, var_list):
-		for var in var_list:
-			if self.beta1 > 0.0:
-				self.add_slot(var, 'm')
-			self.add_slot(var, 'v')
-
-	def _apply_weight_decays(self, u):
-		norm = K.cast(K.sqrt(self.batch_size / self.iterations), K.floatx())
+	def _compute_weight_decays(self, var):
+		l1, l2 = self.decay_var_list[var.name]
 		if l1 != 0 and l2 != 0:
 			decay = l1 * K.sign(var) + l2 * var
 		elif l1 != 0:
 			decay = l1 * K.sign(var)
 		else:
 			decay = l2 * var
-		u = u - norm * decay
-		return u
+		return decay
 
 	def _resource_apply_dense(self, grad, var):
-		g2 = K.square(grad) +K.square(K.epsilon())
-		v = self.get_slot(var, 'v')
-		# Define aux variable
-		v_t = self.beta2 * v + (1.0 - self.beta2) * g2
-		v_t = K.update(v, v_t)
-		# Define main update
-		u = grad / (K.sqrt(v_t + self.epsilon) +K.epsilon())
-		# Define clipping
-		if self.clipping_threshold is not None:
-			u_rms = K.mean(K.sum(K.square(u)))
-			d = self.clipping_threshold
-			u = u / K.maximum(1.0, u_rms / d)
-		# Define momentum
-		if self.beta1 > 0.0:
-			m = self.get_slot(var, 'm')
-			# Define aux variable
-			m_t = self.beta1 * m + (1.0 - self.beta1) * u
-			u = K.update(m, m_t)
-		# Define parameter scaling
-		if self.multiply_by_parameter_scale:
-			u = u * K.maximum(K.mean(K.sum(K.square(var))), self.epsilon_param_scale)
-		# Weight decay
 		if var.name in self.decay_var_list.keys():
-			l1, l2 = self.decay_var_list[var.name]
-			if l1 != 0 or l2 != 0:
-				u = self._apply_weight_decays(u)
-		# Update parameters
-		return K.update(var, var - self.lr * u)
+			K.update(var, var - self.lr * self._compute_weight_decays(var))
+		return super(AdamW, self)._resource_apply_dense(grad, var)
 
 	def _resource_apply_sparse(self, grad, var, indices):
-		grad = tf.IndexedSlices(grad, indices, K.shape(var))
-		grad = tf.convert_to_tensor(grad)
-		return self._resource_apply_dense(grad, var)
+		if var.name in self.decay_var_list.keys():
+			K.update(var, var - self.lr * self._compute_weight_decays(var))
+		return super(AdamW, self)._resource_apply_sparse(grad, var, indices)
+
+	def get_config(self):
+		config = {
+			'decay_var_list': self.decay_var_list
+		}
+		base_config = super(AdamW, self).get_config()
+		return dict(list(base_config.items()) + list(config.items()))
 
 def get_weight_decays(model):
 	wd_dict = {}

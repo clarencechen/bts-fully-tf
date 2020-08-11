@@ -40,7 +40,7 @@ from tensorflow.keras import callbacks
 
 from bts_dataloader import BtsReader, BtsDataloader
 from bts import si_log_loss_wrapper, bts_model
-from custom_callbacks import BatchLRScheduler, TensorboardPlusDepthImages
+from custom_callbacks import BatchLRScheduler, TensorBoardPlusDepthImages
 from custom_optimizers import get_weight_decays, AdamW
 
 def convert_arg_line_to_args(arg_line):
@@ -120,7 +120,7 @@ def train(strategy, params):
 	print("Total number of samples: {}".format(training_samples))
 	print("Total number of steps: {}".format(total_steps))
 
-	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard')
+	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard/')
 	checkpoint_path = os.path.join(args.log_directory, args.model_name, 'checkpoint')
 	final_model_path = os.path.join(args.log_directory, args.model_name, 'final_model')
 
@@ -163,8 +163,7 @@ def train(strategy, params):
 
 	model.summary()
 	model_callbacks = [BatchLRScheduler(poly_decay_fn, steps_per_epoch, initial_epoch=initial_epoch, verbose=1),
-					   TensorboardPlusDepthImages(params.height, params.width, params.max_depth,
-							log_dir=tensorboard_log_dir, profile_batch=0),
+					   callbacks.TensorBoard(log_dir=tensorboard_log_dir, histogram_freq=5, write_graph=False),
 					   callbacks.TerminateOnNaN(),
 					   callbacks.ProgbarLogger(count_mode='steps'),
 					   callbacks.ModelCheckpoint(checkpoint_path,

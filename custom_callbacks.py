@@ -59,13 +59,12 @@ class BatchLRScheduler(callbacks.Callback):
 			print('\nEpoch %05d: BatchLRScheduler set learning '
 				  'rate to %s.' % (epoch + 1, logs['lr']))
 
-class TensorboardPlusDepthImages(callbacks.TensorBoard):
+class TensorBoardPlusDepthImages(callbacks.TensorBoard):
 
-	def __init__(self, height, width, max_depth, **kwargs):
+	def __init__(self, max_depth, test_image, **kwargs):
 		super(TensorboardPlusDepthImages, self).__init__(**kwargs)
-		self.image_height = height
-		self.image_width = width
 		self.est_max_depth = max_depth
+		self.test_image = test_image
 
 	def on_epoch_end(self, epoch, logs=None):		
 		super(TensorboardPlusDepthImages, self).on_epoch_end(epoch, logs)
@@ -77,10 +76,10 @@ class TensorboardPlusDepthImages(callbacks.TensorBoard):
 			d8_layer = self.model.get_layer(name="depth_8x8_scaled")
 
 			out_map_graph = K.function([self.model.layers[0].input], [d1_layer.output, d2_layer.output, d4_layer.output, d8_layer.output])
-			#d1, d2_scaled, d4_scaled, d8_scaled = out_map_graph([test_image])
-			#summary_ops_v2.image('input_image', test_image, step=epoch)
-			#summary_ops_v2.image('depth_est', 1 / (d1 +K.epsilon()), step=epoch)
-			#summary_ops_v2.image('depth_est_cropped', 1 / (d1[:, 8:self.image_height -8, 8:self.image_width -8, :] +K.epsilon()), step=epoch)
-			#summary_ops_v2.image('depth_est_2x2', 1 / (d2_scaled * self.est_max_depth + K.epsilon()), step=epoch)
-			#summary_ops_v2.image('depth_est_4x4', 1 / (d4_scaled * self.est_max_depth + K.epsilon()), step=epoch)
-			#summary_ops_v2.image('depth_est_8x8', 1 / (d8_scaled * self.est_max_depth + K.epsilon()), step=epoch)
+			d1, d2_scaled, d4_scaled, d8_scaled = out_map_graph([self.test_image])
+			summary_ops_v2.image('input_image', test_image, step=epoch)
+			summary_ops_v2.image('depth_est', 1 / (d1 +K.epsilon()), step=epoch)
+			summary_ops_v2.image('depth_est_cropped', 1 / (d1[:, 8:-8, 8:-8, :] +K.epsilon()), step=epoch)
+			summary_ops_v2.image('depth_est_2x2', 1 / (d2_scaled * self.est_max_depth + K.epsilon()), step=epoch)
+			summary_ops_v2.image('depth_est_4x4', 1 / (d4_scaled * self.est_max_depth + K.epsilon()), step=epoch)
+			summary_ops_v2.image('depth_est_8x8', 1 / (d8_scaled * self.est_max_depth + K.epsilon()), step=epoch)

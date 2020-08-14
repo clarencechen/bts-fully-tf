@@ -1,5 +1,6 @@
 --mode train
 --model_name bts_eigen
+--log_directory ./models/
 --encoder densenet161_bts
 --dataset kitti
 --data_path dataset/kitti/

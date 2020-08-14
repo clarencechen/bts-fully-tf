@@ -1,4 +1,5 @@
 --model_name bts_nyu
+--weights_path ./models/
 --encoder densenet161_bts
 --dataset nyu
 --data_path dataset/nyu_depth_v2/official_splits/test/

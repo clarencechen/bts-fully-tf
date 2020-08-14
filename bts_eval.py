@@ -63,8 +63,7 @@ parser.add_argument('--input_height',        type=int,   help='input height', de
 parser.add_argument('--input_width',         type=int,   help='input width', default=640)
 parser.add_argument('--max_depth',           type=float, help='maximum depth in estimation',        default=80)
 
-parser.add_argument('--output_directory',    type=str,   help='output directory for summary, if empty outputs to checkpoint folder', default='')
-parser.add_argument('--checkpoint_path',     type=str,   help='path to a specific checkpoint to load', default='', required=True)
+parser.add_argument('--weights_path',        type=str,   help='path to a specific checkpoint to load', default='', required=True)
 parser.add_argument('--dataset',             type=str,   help='dataset to train on, make3d or nyudepthv2', default='nyu')
 parser.add_argument('--eigen_crop',                      help='if set, crops according to Eigen NIPS14',     action='store_true')
 parser.add_argument('--garg_crop',                       help='if set, crops according to Garg  ECCV16',     action='store_true')
@@ -89,11 +88,8 @@ def get_num_lines(file_path):
 	return len(lines)
 
 def test(strategy, params):
-	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
-	if not args.output_directory:
-		tensorboard_log_dir = os.path.join(args.output_directory, args.model_name, 'tensorboard')
-	else:
-		tensorboard_log_dir = os.path.join(args.checkpoint_path, args.model_name, 'tensorboard')
+	model_file = os.path.join(args.weights_path, args.model_name, 'final_model')
+	tensorboard_log_dir = os.path.join(args.weights_path, args.model_name, 'tensorboard/')
 
 	reader = BtsReader(params)
 	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)
@@ -109,9 +105,8 @@ def test(strategy, params):
 		model = bts_model(params, 'test')
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
-		# Load checkpoint if set
-		print('Loading checkpoint at {}'.format(checkpoint_file))
-		model.load_weights(checkpoint_file, by_name=False).expect_partial()
+		print('Loading checkpoint at {}'.format(model_file))
+		model.load_weights(model_file, by_name=False).expect_partial()
 		print('Checkpoint successfully loaded')
 
 	model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
@@ -141,7 +136,7 @@ def main():
 	if tpu:
 		tf.config.experimental_connect_to_cluster(tpu)
 		tf.tpu.experimental.initialize_tpu_system(tpu)
-		strategy = tf.distribute.experimental.TPUStrategy(tpu)
+		strategy = tf.distribute.TPUStrategy(tpu)
 	# MirroredStrategy for distributed training on multiple GPUs
 	elif args.num_gpus > 1:
 		gpus = tf.config.experimental.list_physical_devices('GPU')

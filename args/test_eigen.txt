@@ -1,4 +1,5 @@
 --model_name bts_eigen
+--weights_path ./models/
 --encoder densenet161_bts
 --dataset kitti
 --data_path dataset/kitti/

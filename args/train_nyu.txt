@@ -1,5 +1,6 @@
 --mode train
 --model_name bts_nyu
+--log_directory ./models/
 --encoder densenet161_bts
 --dataset nyu
 --data_path dataset/nyu_depth_v2/sync/

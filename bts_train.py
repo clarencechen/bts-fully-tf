@@ -122,6 +122,7 @@ def train(strategy, params):
 
 	tensorboard_log_dir = os.path.join(args.log_directory, args.model_name, 'tensorboard')
 	checkpoint_path = os.path.join(args.log_directory, args.model_name, 'checkpoint')
+	final_model_path = os.path.join(args.log_directory, args.model_name, 'final_model')
 
 	# Scale batch size and learning rate by number of distributed training cores
 	start_lr = args.learning_rate * strategy.num_replicas_in_sync
@@ -156,7 +157,7 @@ def train(strategy, params):
 		initial_epoch = 0
 		if not args.retrain and tf.io.gfile.exists(checkpoint_path):
 			print('Loading checkpoint at {}'.format(checkpoint_path))
-			model.load_weights(checkpoint_path, by_name=False)
+			model.load_weights(checkpoint_path)
 			initial_epoch = model.optimizer.iterations.value() // steps_per_epoch
 			print('Checkpoint successfully loaded')
 
@@ -177,7 +178,7 @@ def train(strategy, params):
 			  callbacks=model_callbacks,
 			  steps_per_epoch=steps_per_epoch)
 
-	model.save_weights(checkpoint_path, save_format='tf')
+	model.save_weights(final_model_path, save_format='tf')
 
 	print('{} training finished at {}'.format(args.model_name, datetime.datetime.now()))
 
@@ -195,7 +196,7 @@ def main():
 		if tpu:
 			tf.config.experimental_connect_to_cluster(tpu)
 			tf.tpu.experimental.initialize_tpu_system(tpu)
-			strategy = tf.distribute.experimental.TPUStrategy(tpu)
+			strategy = tf.distribute.TPUStrategy(tpu)
 		# MirroredStrategy for distributed training on multiple GPUs
 		elif args.num_gpus > 1:
 			gpus = tf.config.experimental.list_physical_devices('GPU')

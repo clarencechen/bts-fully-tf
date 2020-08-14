@@ -37,7 +37,7 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 		Outputs of the newly created/loaded model instance.
 	'''
 	nb_dense_block = len(nb_layers)
-	l2_reg = regularizers.l2(reg_weight)
+	l2_reg = regularizers.L1L2(reg_weight)
 	compression = 1.0 - reduction
 	batch_norm_params = {'momentum': 0.99, 'epsilon': 1.1e-5, 'fused': True}
 

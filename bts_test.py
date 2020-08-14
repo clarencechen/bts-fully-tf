@@ -41,7 +41,7 @@ import tensorflow as tf
 from tensorflow.keras import callbacks
 
 from bts_dataloader import BtsReader, BtsDataloader
-from bts import bts_model, si_log_loss_wrapper
+from bts import bts_model
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -80,7 +80,7 @@ def get_num_lines(file_path):
 
 def test(params):
 	"""Test function."""
-	checkpoint_file = os.path.join(args.checkpoint_path, args.model_name, 'checkpoint')
+	model_file = os.path.join(args.checkpoint_path, args.model_name, 'final_model')
 	
 	reader = BtsReader(params)
 	processor = BtsDataloader(params, do_kb_crop=args.do_kb_crop)
@@ -90,13 +90,12 @@ def test(params):
 	else:
 		loader = reader.read_from_tf_record(args.tfrecord_path, args.filenames_file, 'predict', args.tfrecord_shards)
 	loader = processor.process_dataset(loader, 'predict')
-	
+
 	with tf.device('/cpu:0'):
-		model = bts_model(params, 'predict')
+		model, _ = bts_model(params, 'predict')
 		model.compile(optimizer='adam', loss=None)
-		# Load checkpoint if set
-		print('Loading checkpoint at {}'.format(checkpoint_file))
-		model.load_weights(checkpoint_file, by_name=False).expect_partial()
+		print('Loading checkpoint at {}'.format(model_file))
+		model.load_weights(model_file, by_name=False).expect_partial()
 		print('Checkpoint successfully loaded')
 		model_callbacks = [callbacks.ProgbarLogger(count_mode='steps')]
 

@@ -42,7 +42,7 @@ Once the preparation steps completed, you can evaluate BTS using following comma
 $ cd ~/workspace/bts-fully-tf/
 $ mkdir ./models/; mkdir ./models/bts_nyu/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_nyu/* ./models/bts_nyu/
-$ python bts_test.py args/test_nyu.txt --checkpoint_path ./models/
+$ python bts_test.py args/test_nyu.txt
 ```
 You should see outputs like this:
 ```
@@ -63,7 +63,7 @@ Once you have KITTI dataset and official ground truth depthmaps, you can test an
 $ cd ~/workspace/bts
 $ mkdir ./models/; mkdir ./models/bts_eigen/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_eigen/* ./models/bts_eigen/
-$ python bts_test.py args/test_eigen.txt --checkpoint_path ./models/
+$ python bts_test.py args/test_eigen.txt
 ```
 You should see outputs like this:
 ```
@@ -130,7 +130,7 @@ $ python bts_train.py args/train_nyu_gcloud.txt --log_directory gs://{bucket_nam
 ```
 You can check the training using Tensorboard with logs either stored in a local directory:
 ```
-$ tensorboard --logdir ./models/bts_nyu/tensorboard
+$ tensorboard --logdir ./models/bts_nyu/tensorboard/
 ```
 or stored in a Google Cloud Bucket:
 ```

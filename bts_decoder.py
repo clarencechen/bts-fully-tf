@@ -23,7 +23,7 @@ from tensorflow.keras import layers
 
 from custom_layers import LocalPlanarGuidance
 
-def decoder_model(decoder_inputs, full_height, full_width, max_depth, num_filters=256, is_training=False):
+def decoder_model(decoder_inputs, max_depth, num_filters=256, is_training=False):
 	batch_norm_params = {'momentum': 0.99, 'epsilon': 1.1e-5, 'fused': True}
 	dense_features, skip_2, skip_4, skip_8, skip_16 = decoder_inputs
 

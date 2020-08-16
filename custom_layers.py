@@ -27,22 +27,22 @@ except ImportError:
 import tensorflow.keras.backend as K
 
 class LocalPlanarGuidance(layers.Layer):
-	def __init__(self, height, width, upratio, **kwargs):
+	def __init__(self, upratio, **kwargs):
 		super(LocalPlanarGuidance, self).__init__(**kwargs)
-		self.full_height = height
-		self.full_width = width
 		self.upratio = upratio
 
 	def build(self, input_shape):
+		assert len(input_shape) > 2
+		height, width = input_shape[1] * self.upratio, input_shape[2] * self.upratio
 		v, u = tf.meshgrid(
-			np.linspace(0, self.full_width -1, self.full_width, dtype=np.float32), 
-			np.linspace(0, self.full_height -1, self.full_height, dtype=np.float32))
+			np.linspace(0, width -1, width, dtype=np.float32), 
+			np.linspace(0, height -1, height, dtype=np.float32))
 
 		v = K.expand_dims(v, axis=0)
-		v = (v % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1)) # V2 Update
+		v = (v % self.upratio - (self.upratio - 1)/2) / float(self.upratio) # V2 Update
 
 		u = K.expand_dims(u, axis=0)
-		u = (u % self.upratio - (self.upratio - 1)/2) / K.reshape(float(self.upratio), (-1, 1, 1)) # V2 Update
+		u = (u % self.upratio - (self.upratio - 1)/2) / float(self.upratio) # V2 Update
 
 		self.pixel_dir_unit = K.l2_normalize(K.stack([u, v, K.ones_like(u)], axis=-1), axis=3) # Normalize first
 
@@ -50,8 +50,8 @@ class LocalPlanarGuidance(layers.Layer):
 
 	def call(self, inputs):
 		# Decrease max value of theta to pi/3 to enhance numerical stability
-		phi, theta, raw_dist = inputs[..., 0] * 2 * pi, inputs[..., 1] * pi / 3, inputs[..., 2]
-		plane_coeffs = K.stack([K.sin(theta) * K.cos(phi), K.sin(theta) * K.sin(phi), K.cos(theta), raw_dist], axis=-1)
+		phi, theta, raw_dist = inputs[:, :, :, 0:1] * 2 * pi, inputs[:, :, :, 1:2] * pi / 3, inputs[:, :, :, 2:3]
+		plane_coeffs = K.concatenate([K.sin(theta) * K.cos(phi), K.sin(theta) * K.sin(phi), K.cos(theta), raw_dist], axis=-1)
 		
 		plane_exp_height = K.repeat_elements(plane_coeffs, self.upratio, axis=1)
 		plane_exp = K.repeat_elements(plane_exp_height, self.upratio, axis=2)
@@ -61,7 +61,7 @@ class LocalPlanarGuidance(layers.Layer):
 
 	def get_config(self):
 		base_config = super(LocalPlanarGuidance, self).get_config()
-		config = {'upratio': self.upratio, 'full_height': self.full_height, 'full_width': self.full_width}
+		config = {'upratio': self.upratio}
 		return dict(list(base_config.items()) + list(config.items()))
 
 class Scale(layers.Layer):

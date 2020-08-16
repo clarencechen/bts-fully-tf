@@ -13,9 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>
-
 from __future__ import absolute_import, division, print_function
-
 import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
@@ -23,25 +21,19 @@ import tensorflow.keras.backend as K
 from tensorflow.keras import Input, Model
 from bts_decoder import decoder_model
 from bts_densenet import densenet_model
-
 def si_log_loss_wrapper(dataset):
 	gt_th = {'nyu':0.1, 'kitti':1.0, 'matterport':0.1}
-
 	@tf.function()
 	def si_log_loss(y_true, y_pred):
 		mask = K.greater(y_true, gt_th[dataset])
-
 		y_true_masked = tf.boolean_mask(tensor=y_true, mask=mask)
 		y_pred_masked = tf.boolean_mask(tensor=y_pred, mask=mask)
-
 		d = K.log(y_true_masked +K.epsilon()) -K.log(y_pred_masked +K.epsilon())
 		return K.sqrt(K.mean(K.square(d)) - 0.85 * K.square(K.mean(d))) * 10.0 # Differs from paper
-
 	assert dataset in gt_th
 	return si_log_loss
 
 def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
-
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size, name='input_image')
 
@@ -77,7 +69,6 @@ def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_wei
 					is_training=is_training)
 	else:
 		return None
-
 
 	model = Model(inputs=input_image, outputs=depth_est)
 	return model

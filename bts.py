@@ -41,7 +41,6 @@ def si_log_loss_wrapper(dataset):
 	return si_log_loss
 
 def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
-
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size, name='input_image')
 
@@ -55,8 +54,6 @@ def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_wei
 							fix_first=fix_first,
 							fix_first_two=fix_first_two)
 		depth_est = decoder_model(densenet_outputs, 
-					params.height, 
-					params.width, 
 					params.max_depth, 
 					num_filters=512, 
 					is_training=is_training)
@@ -70,14 +67,11 @@ def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_wei
 							fix_first=fix_first,
 							fix_first_two=fix_first_two)
 		depth_est = decoder_model(densenet_outputs, 
-					params.height, 
-					params.width,
 					params.max_depth, 
 					num_filters=256, 
 					is_training=is_training)
 	else:
 		return None
-
 
 	model = Model(inputs=input_image, outputs=depth_est)
 	return model

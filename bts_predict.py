@@ -101,10 +101,10 @@ def test(params):
 
 		model.summary()
 
-		num_test_samples = get_num_lines(args.filenames_file)
+		num_predict = get_num_lines(args.filenames_file)
 		with open(args.filenames_file) as f:
 			lines = f.readlines()
-		print('Now testing {} files with {}'.format(num_test_samples, args.checkpoint_path))
+		print('Now executing inference on {} files with {}'.format(num_predict, args.checkpoint_path))
 		
 		print('Processing images..')
 		pred_depths = model.predict(loader, verbose=1, callbacks=model_callbacks)
@@ -120,7 +120,7 @@ def test(params):
 				if e.errno != errno.EEXIST:
 					raise
 
-		for s in tqdm(range(num_test_samples)):
+		for s in tqdm(range(num_predict)):
 			if args.dataset == 'kitti':
 				date_drive = lines[s].split('/')[1]
 				filename_jpg = lines[s].split()[0].split('/')[-1]

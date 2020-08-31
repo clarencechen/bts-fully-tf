@@ -18,5 +18,4 @@
 --do_random_rotate
 --degree 1.0
 --log_directory ./models/
---pretrained_model ./models/densenet161_imagenet/weights.h5
 --fix_first_conv_blocks

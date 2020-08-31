@@ -127,7 +127,11 @@ def train(strategy, params):
 	# Scale batch size and learning rate by number of distributed training cores
 	start_lr = args.learning_rate * strategy.num_replicas_in_sync
 	end_lr = args.end_learning_rate * strategy.num_replicas_in_sync if args.end_learning_rate > 0 else start_lr * 0.1
-	poly_decay_fn = lambda step, lr: (start_lr -end_lr)*(1 - min(step, total_steps)/total_steps)**0.9 +end_lr
+
+	@tf.function
+	def poly_decay_fn(step):
+		lr = (start_lr -end_lr)*(1 - tf.minimum(step, total_steps)/total_steps)**0.9 +end_lr
+		return tf.cast(lr, tf.float32)
 
 	if args.fix_first_conv_blocks or args.fix_first_conv_block:
 		if args.fix_first_conv_blocks:

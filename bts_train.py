@@ -73,8 +73,7 @@ parser.add_argument('--max_depth',                 type=float, help='maximum dep
 
 # Log and save
 parser.add_argument('--log_directory',             type=str,   help='directory to load and save checkpoints and summaries', default='')
-parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='')
-
+parser.add_argument('--pretrained_model',          type=str,   help='path to a pretrained model checkpoint to load', default='./models/densenet161_imagenet/weights.h5')
 # Model Hyperparams
 parser.add_argument('--fix_first_conv_blocks',                 help='if set, will fix the first two conv blocks', action='store_true')
 parser.add_argument('--fix_first_conv_block',                  help='if set, will fix the first conv block', action='store_true')

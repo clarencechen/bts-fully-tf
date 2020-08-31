@@ -2,4 +2,4 @@
 mkdir models
 mkdir models/densenet161_imagenet
 echo Downloading pretrained model...
-python ./utils/download_from_gdrive.py 0Byy2AcGyEVxfUDZwVjU2cFNidTA models/densenet161_imagenet/weights.h5
+gsutil cp gs://densenet161-imagenet/weights.h5 ./models/densenet161_imagenet/

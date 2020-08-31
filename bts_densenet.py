@@ -21,8 +21,6 @@ from tensorflow.keras import Model
 from tensorflow.keras import backend as K
 from tensorflow.keras import layers, regularizers
 
-from custom_layers import Scale
-
 def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reduction=0.0, dropout_rate=0.0, reg_weight=1e-3, is_training=False, weights_path=None, fix_first=False, fix_first_two=False):
 	'''Instantiate the DenseNet architecture,
 	# Arguments
@@ -56,7 +54,6 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 		# 1x1 Convolution (Bottleneck layer)
 		inter_channel = nb_filter * 4
 		x = layers.BatchNormalization(name=conv_name_base+'_x1_bn', **batch_norm_params, trainable=(not frozen))(x, training=False)
-		x = Scale(axis=3, name=conv_name_base+'_x1_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base+'_x1')(x)
 		x = layers.Conv2D(inter_channel, 
 						kernel_size=1, 
@@ -71,7 +68,6 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 
 		# 3x3 Convolution
 		x = layers.BatchNormalization(name=conv_name_base+'_x2_bn', **batch_norm_params, trainable=(not frozen))(x, training=False)
-		x = Scale(axis=3, name=conv_name_base+'_x2_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base+'_x2')(x)
 		x = layers.Conv2D(nb_filter, 
 						kernel_size=3, 
@@ -100,7 +96,6 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 		pool_name_base = 'pool' + str(stage) 
 
 		x = layers.BatchNormalization(name=conv_name_base+'_bn', **batch_norm_params, trainable=(not frozen))(x, training=False)
-		x = Scale(axis=3, name=conv_name_base+'_scale', trainable=(not frozen))(x)
 		x = layers.ReLU(name=relu_name_base)(x)
 		x = layers.Conv2D(int(nb_filter * compression),
 						kernel_size=1, 
@@ -149,7 +144,6 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 						trainable = freeze_init, 
 						kernel_regularizer=l2_reg)(inputs)
 	conv1_bn = layers.BatchNormalization(name='conv1_bn', **batch_norm_params, trainable=freeze_init)(conv1, training=False)
-	conv1_bn = Scale(axis=3, name='conv1_scale', trainable=freeze_init)(conv1_bn)
 	relu1 = layers.ReLU(name='relu1')(conv1_bn)
 	skips.append(relu1)
 
@@ -180,7 +174,6 @@ def densenet_model(inputs, nb_layers, growth_rate=48, init_nb_filter=96, reducti
 	convfinal = dense_block(x, final_stage, nb_layers[-1], frozen=False)
 
 	convfinal_bn = layers.BatchNormalization(name='conv'+str(final_stage)+'_blk_bn', **batch_norm_params)(convfinal, training=False)
-	convfinal_bn = Scale(axis=3, name='conv'+str(final_stage)+'_blk_scale')(convfinal_bn)
 	dense_features = layers.ReLU(name='relu'+str(final_stage)+'_blk')(convfinal_bn)
 
 	outputs = [dense_features] + skips

@@ -29,28 +29,24 @@ from tensorflow.keras import callbacks
 class BatchLRScheduler(callbacks.Callback):
 	"""Learning rate scheduler.
 	# Arguments
-		schedule: a function that takes a batch index as input
-			(integer, indexed from 0) and current learning rate
-			and returns a new learning rate as output (float).
+		schedule: a tf.function that takes a batch index as input
+			(indexed from 0) and current learning rate
+			and returns a new learning rate as output.
 		verbose: int. 0: quiet, 1: update messages.
 	"""
 
 	def __init__(self, schedule, steps_per_epoch, initial_epoch=0, verbose=0):
 		super(BatchLRScheduler, self).__init__()
-		self.global_step = float(steps_per_epoch * initial_epoch)
+		self.epoch_step = tf.Variable(steps_per_epoch * initial_epoch)
 		self.schedule = schedule
+		self.steps_per_epoch = steps_per_epoch
 		self.verbose = verbose
 
 	def on_batch_begin(self, batch, logs=None):
 		if not hasattr(self.model.optimizer, 'lr'):
 			raise ValueError('Optimizer must have a "lr" attribute.')
-		lr = float(K.get_value(self.model.optimizer.lr))
-		lr = self.schedule(self.global_step, lr)
-		if not isinstance(lr, (float, np.float32, np.float64)):
-			raise ValueError('The output of the "schedule" function '
-							 'should be float.')
-		K.set_value(self.model.optimizer.lr, lr)
-		self.global_step += 1
+		new_lr = self.schedule(self.epoch_step + batch)
+		K.set_value(self.model.optimizer.lr, new_lr)
 
 	def on_epoch_end(self, epoch, logs=None):
 		logs = logs or {}
@@ -58,6 +54,7 @@ class BatchLRScheduler(callbacks.Callback):
 		if self.verbose > 0:
 			print('\nEpoch %05d: BatchLRScheduler set learning '
 				  'rate to %s.' % (epoch + 1, logs['lr']))
+		K.set_value(self.epoch_step, self.epoch_step + self.steps_per_epoch)
 
 class TensorBoardPlusDepthImages(callbacks.TensorBoard):
 

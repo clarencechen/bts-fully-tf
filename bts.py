@@ -47,8 +47,6 @@ def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_wei
 							fix_first=fix_first,
 							fix_first_two=fix_first_two)
 		depth_est = decoder_model(densenet_outputs, 
-					params.height, 
-					params.width, 
 					params.max_depth, 
 					num_filters=512, 
 					is_training=is_training)
@@ -62,8 +60,6 @@ def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_wei
 							fix_first=fix_first,
 							fix_first_two=fix_first_two)
 		depth_est = decoder_model(densenet_outputs, 
-					params.height, 
-					params.width,
 					params.max_depth, 
 					num_filters=256, 
 					is_training=is_training)

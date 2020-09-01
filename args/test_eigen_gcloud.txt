@@ -1,7 +1,8 @@
 --model_name bts_eigen
 --encoder densenet161_bts
 --dataset kitti
---tfrecord_path gs://nyu-depth-v2/kitti-eigen-eval-compressed-scaled.tfrecord
+--tfrecord_path gs://kitti-depth/kitti-eigen-eval-scaled.tfrecord
+--tfrecord_shards 4
 --filenames_file ./train_test_inputs/eigen_test_files_with_gt.txt
 --input_height 352
 --input_width 1216

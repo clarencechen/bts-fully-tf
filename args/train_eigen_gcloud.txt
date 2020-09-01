@@ -2,8 +2,8 @@
 --model_name bts_eigen
 --encoder densenet161_bts
 --dataset kitti
---tfrecord_path gs://nyu-depth-v2/kitti-eigen-train-compressed-scaled.tfrecord
---tfrecord_shards 8
+--tfrecord_path gs://kitti-depth/kitti-eigen-train-scaled.tfrecord
+--tfrecord_shards 128
 --filenames_file ./train_test_inputs/eigen_train_files_with_gt.txt
 --batch_size 4
 --num_epochs 50

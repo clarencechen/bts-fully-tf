@@ -102,7 +102,7 @@ def test(strategy, params):
 	loader = processor.process_dataset(loader, 'test')
 
 	with strategy.scope():
-		model = bts_model(params, 'test')
+		model, _ = bts_model(params, 'test')
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer='adam', loss=loss, metrics=metrics_list_factory(args))
 		print('Loading checkpoint at {}'.format(model_file))

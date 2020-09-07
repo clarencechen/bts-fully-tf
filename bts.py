@@ -20,7 +20,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
 
-from tensorflow.keras import Input, Model
+from tensorflow.keras import Input, Model, applications
 from bts_decoder import decoder_model
 from bts_densenet import densenet_model
 
@@ -40,38 +40,79 @@ def si_log_loss_wrapper(dataset):
 	assert dataset in gt_th
 	return si_log_loss
 
-def bts_model(params, mode, fix_first=False, fix_first_two=False, pretrained_weights_path=None):
+def bts_model(params, mode, fix_first=False, fix_second=False, pretrained_weights_path=None):
 	is_training = True if mode == 'train' else False
 	input_image = Input(shape=(params.height, params.width, 3), batch_size=params.batch_size, name='input_image')
 
 	if params.encoder == 'densenet161_bts':
-		densenet_outputs =  densenet_model(input_image, [6,12,36,24],
-							growth_rate=48,
-							init_nb_filter=96,
-							reduction=0.5,
-							is_training=is_training,
-							weights_path=pretrained_weights_path,
-							fix_first=fix_first,
-							fix_first_two=fix_first_two)
-		depth_est = decoder_model(densenet_outputs, 
-					params.max_depth, 
-					num_filters=512, 
-					is_training=is_training)
-	elif params.encoder == 'densenet121_bts':
-		densenet_outputs =  densenet_model(input_image, [6,12,24,16],
-							growth_rate=32,
-							init_nb_filter=64,
-							reduction=0.5,
-							is_training=is_training,
-							weights_path=pretrained_weights_path,
-							fix_first=fix_first,
-							fix_first_two=fix_first_two)
-		depth_est = decoder_model(densenet_outputs, 
-					params.max_depth, 
-					num_filters=256, 
-					is_training=is_training)
+		encoder_model = densenet_model(input_image, [6,12,36,24], weights_path=pretrained_weights_path)
+		decoder_filters = 512
+	elif params.encoder == 'densenet201':
+		encoder_model = applications.DenseNet201(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 512
+	elif params.encoder == 'densenet169':
+		encoder_model = applications.DenseNet169(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 256
+	elif params.encoder == 'densenet121':
+		encoder_model = applications.DenseNet121(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 256
+	elif params.encoder == 'resnet101':
+		encoder_model = applications.ResNet101V2(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 512
+	elif params.encoder == 'resnet50':
+		encoder_model = applications.ResNet50V2(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 256
+	elif params.encoder == 'mobilenet':
+		encoder_model = applications.MobileNetV2(include_top=False, input_tensor=input_image, pooling=None)
+		decoder_filters = 256
 	else:
-		return None
+		return None, None
+
+	if 'densenet' in params.encoder:
+		out_layers = ['relu', 'conv1/relu', 'pool1', 'pool2_pool', 'pool3_pool']
+		fix_list = ['conv1', 'pool1']
+		if fix_first:
+			fix_list += ['conv2', 'pool2']
+			if fix_second:
+				fix_list += ['conv3', 'pool3']
+
+	elif 'resnet' in params.encoder:
+		out_layers = ['post_relu', 'conv1_conv', 'pool1_pool', 'conv2_block3_out', 'conv3_block4_out']
+		fix_list = ['conv1', 'pool1']
+		if fix_first:
+			fix_list += ['conv2']
+			if fix_second:
+				fix_list += ['conv3']
+
+	elif 'mobilenet' in params.encoder:
+		out_layers = ['out_relu', 'Conv1_relu', 'block_2_add', 'block_5_add', 'block_12_add']
+		fix_list = ['Conv1', 'block_0']
+		if fix_first:
+			fix_list += ['block_1, block_2']
+			if fix_second:
+				fix_list += ['block_3', 'block_4', 'block_5']
+
+	encoder_outputs = [encoder_model.get_layer(name).output for name in out_layers]
+	for layer in encoder_model.layers:
+		for substr in fix_list:
+			if layer.name.startswith(substr):
+				layer.trainable = False
+
+	depth_est = decoder_model(encoder_outputs, 
+				params.max_depth, 
+				num_filters=decoder_filters, 
+				is_training=is_training)
 
 	model = Model(inputs=input_image, outputs=depth_est)
-	return model
+	return model, compile_weight_decays(encoder_model, params.encoder, l1=0.0, l2=1e-2)
+
+def compile_weight_decays(model, model_name, l1=0.0, l2=0.0):
+	wd_dict = {}
+
+	for layer in model.layers:
+		if hasattr(layer, 'layer'):
+			layer = layer.layer
+		is_conv_layer = (layer.name in ['Conv1', 'Conv_1'] or layer.name[-6:] in ['expand', 'roject', 'thwise']) if ('mobilenet' in model_name) else (layer.name[-4:] == 'conv')
+		if is_conv_layer and hasattr(layer, 'kernel'):
+			wd_dict[getattr(layer, 'kernel').name] = (float(l1), float(l2))
+	return wd_dict

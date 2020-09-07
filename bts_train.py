@@ -39,9 +39,9 @@ from tensorflow.python import pywrap_tensorflow
 from tensorflow.keras import callbacks
 
 from bts_dataloader import BtsReader, BtsDataloader
-from bts import si_log_loss_wrapper, bts_model
+from bts import si_log_loss_wrapper, bts_model, compile_weight_decays
 from custom_callbacks import BatchLRScheduler, TensorBoardPlusDepthImages
-from custom_optimizers import get_weight_decays, AdamW
+from custom_optimizers import AdamW
 
 def convert_arg_line_to_args(arg_line):
 	for arg in arg_line.split():
@@ -56,7 +56,7 @@ parser.convert_arg_line_to_args = convert_arg_line_to_args
 # Model
 parser.add_argument('--mode',                      type=str,   help='train or test', default='train')
 parser.add_argument('--model_name',                type=str,   help='model name', default='bts_eigen')
-parser.add_argument('--encoder',                   type=str,   help='type of encoder, desenet121_bts or densenet161_bts', default='densenet161_bts')
+parser.add_argument('--encoder',                   type=str,   help='type of encoder', default='densenet161_bts')
 
 # Dataset meta
 parser.add_argument('--dataset',                   type=str,   help='dataset to train on, kitti or nyu', default='kitti')
@@ -132,7 +132,8 @@ def train(strategy, params):
 		lr = (start_lr -end_lr)*(1 - tf.minimum(step, total_steps)/total_steps)**0.9 +end_lr
 		return tf.cast(lr, tf.float32)
 
-	if args.fix_first_conv_blocks or args.fix_first_conv_block:
+	fix_first = args.fix_first_conv_blocks or args.fix_first_conv_block
+	if fix_first:
 		if args.fix_first_conv_blocks:
 			print('Fixing first two conv blocks')
 		else:
@@ -149,10 +150,8 @@ def train(strategy, params):
 	loader = processor.process_dataset(loader, args.mode)
 
 	with strategy.scope():
-		model = bts_model(params, args.mode, fix_first=args.fix_first_conv_block, 
-											 fix_first_two=args.fix_first_conv_blocks, 
+		model, wd_dict = bts_model(params, args.mode, fix_first=fix_first, fix_second=args.fix_first_conv_blocks,
 											 pretrained_weights_path=args.pretrained_model)
-		wd_dict = get_weight_decays(model)
 		opt = AdamW(lr=start_lr, decay_var_list=wd_dict, epsilon=args.adam_eps)
 		loss = si_log_loss_wrapper(params.dataset)
 		model.compile(optimizer=opt, loss=loss)

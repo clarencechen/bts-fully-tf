@@ -17,7 +17,7 @@
 from __future__ import absolute_import, division, print_function
 import tensorflow as tf
 import tensorflow_addons as tfa
-from tensorflow.python.ops import array_ops
+from tensorflow.keras.applications.imagenet_utils import preprocess_input
 
 class BtsReader(object):
 	"""Image reader from list of filenames"""
@@ -126,10 +126,11 @@ class BtsDataloader(object):
 	def __init__(self, params, do_rotate=False, degree=5.0, do_kb_crop=False, use_tpu=False):
 		self.params = params
 
+		self.image_mean = tf.reshape(tf.constant([123.68, 116.78, 103.94], dtype=tf.float32), [1, 1, 1, 3])
+
 		self.do_rotate = do_rotate
 		self.degree = degree
 		self.do_kb_crop = do_kb_crop
-		self.image_mean = tf.reshape(tf.constant([123.68, 116.78, 103.94], dtype=tf.float32), [1, 1, 1, 3])
 
 	def dataset_crop_test(self, image):
 		height, width = tf.shape(image)[0], tf.shape(image)[1]
@@ -141,9 +142,15 @@ class BtsDataloader(object):
 
 	def predict_preprocess(self, batch):
 		batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
-		batch = batch * 255.0 - self.image_mean
-		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
-			batch *= 0.017
+
+		batch *= 255.0
+		if self.params.encoder == 'densenet161_bts':
+			batch = (batch - self.image_mean) * 0.017
+		elif 'densenet' in self.params.encoder:
+			batch = preprocess_input(batch, mode='torch')
+		else:
+			batch = preprocess_input(batch, mode='tf')
+
 		return batch
 
 	def test_preprocess(self, batch):
@@ -152,10 +159,13 @@ class BtsDataloader(object):
 		image_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
 		depth_gt_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 1])
 
-		image_batch = image_batch * 255.0 - self.image_mean
-
-		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
-			image_batch *= 0.017
+		image_batch *= 255.0
+		if self.params.encoder == 'densenet161_bts':
+			image_batch = (image_batch - self.image_mean) * 0.017
+		elif 'densenet' in self.params.encoder:
+			image_batch = preprocess_input(image_batch, mode='torch')
+		else:
+			image_batch = preprocess_input(image_batch, mode='tf')
 
 		return image_batch, depth_gt_batch
 
@@ -198,10 +208,13 @@ class BtsDataloader(object):
 		image_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 3])
 		depth_gt_batch.set_shape([self.params.batch_size, self.params.height, self.params.width, 1])
 
-		image_batch = image_batch * 255.0 - self.image_mean
-
-		if self.params.encoder == 'densenet161_bts' or self.params.encoder == 'densenet121_bts':
-			image_batch *= 0.017
+		image_batch *= 255.0
+		if self.params.encoder == 'densenet161_bts':
+			image_batch = (image_batch - self.image_mean) * 0.017
+		elif 'densenet' in self.params.encoder:
+			image_batch = preprocess_input(image_batch, mode='torch')
+		else:
+			image_batch = preprocess_input(image_batch, mode='tf')
 
 		return image_batch, depth_gt_batch
 

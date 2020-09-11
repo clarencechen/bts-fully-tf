@@ -91,11 +91,11 @@ class BtsReader(object):
 		if mode == 'train':
 			if shuffle_dataset:
 				loader = loader.repeat().shuffle(len(filenames))
-			loader = loader.map(read_decode_train, num_parallel_calls=self.params.num_threads)
+			loader = loader.map(read_decode_train, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 		elif mode == 'test':
-			loader = loader.map(read_decode_test, num_parallel_calls=self.params.num_threads)
+			loader = loader.map(read_decode_test, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 		else:
-			loader = loader.map(read_decode_predict, num_parallel_calls=self.params.num_threads)
+			loader = loader.map(read_decode_predict, num_parallel_calls=tf.data.experimental.AUTOTUNE)
 
 		return loader
 

@@ -7,14 +7,14 @@ This repository is a TensorFlow implementation of the BTS Depth Estimation model
 # TODO
 
 ## High Priority
-- [*] Direct prediction of depth maps to saved PNG images
-- [] Web server with live demo of results using Flask or node.js
+- [x] Direct prediction of depth maps to saved PNG images
+- [ ] Web server with live demo of results using Flask or node.js
 
 ## Medium Priority
-- [] Additional image classification backbone models using `tf.keras.applications`
-- [] Random image rotation in the data preprocessing pipeline when training on TPU
-- [] Validation split and hyperparameter tuning using optuna
-- [] Depth map output in Tensorboard using validation split above
+- [x] Additional image classification backbone models using `tf.keras.applications`
+- [ ] Random image rotation in the data preprocessing pipeline when training on TPU
+- [ ] Validation split and hyperparameter tuning using optuna
+- [ ] Depth map output in Tensorboard using validation split above
 
 ## Low priority
  - Support parallelized tfrecord sharding in `bts_convert_data.py`
@@ -49,7 +49,7 @@ You should see outputs like this:
 Now testing 654 images.
 81/81 [==============================] - 44s 546ms/step
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
-12.8351,  0.1245,   0.053,   0.434,   0.082,   0.158,   0.855,   0.971,   0.993
+12.7278,  0.1233,   0.052,   0.429,   0.079,   0.157,   0.852,   0.972,   0.993
 ```
 Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
 

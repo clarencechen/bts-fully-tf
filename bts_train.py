@@ -29,7 +29,6 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'max_depth, '
 										  'batch_size, '
 										  'dataset, '
-										  'num_threads, '
 										  'num_epochs, '
 										  'use_tpu, ')
 
@@ -93,7 +92,6 @@ parser.add_argument('--do_kb_crop',                            help='if set, cro
 
 # Devices
 parser.add_argument('--num_gpus',                  type=int,   help='number of GPUs to use for training', default=1)
-parser.add_argument('--num_threads',               type=int,   help='number of threads to use for data loading', default=8)
 
 
 if sys.argv.__len__() > 1 and sys.argv[1][0] != '-':
@@ -220,7 +218,6 @@ def main():
 			batch_size=args.batch_size * strategy.num_replicas_in_sync,
 			dataset=args.dataset,
 			max_depth=args.max_depth,
-			num_threads=args.num_threads,
 			num_epochs=args.num_epochs,
 			use_tpu=False if tpu is None else True)
 

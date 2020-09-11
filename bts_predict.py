@@ -33,7 +33,6 @@ bts_parameters = namedtuple('parameters', 'encoder, '
 										  'max_depth, '
 										  'batch_size, '
 										  'dataset, '
-										  'num_threads, '
 										  'num_epochs, '
 										  'use_tpu, ')
 
@@ -158,7 +157,7 @@ def test(params):
 
 
 def main():
-	
+
 	params = bts_parameters(
 		encoder=args.encoder,
 		height=args.input_height,
@@ -166,7 +165,6 @@ def main():
 		batch_size=args.batch_size,
 		dataset=args.dataset,
 		max_depth=args.max_depth,
-		num_threads=None,
 		num_epochs=None,
 		use_tpu=False)
 

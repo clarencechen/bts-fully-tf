@@ -62,3 +62,8 @@ class AdamW(tf.keras.optimizers.Adam):
 		if var.name in self.decay_var_list.keys():
 			K.update(var, var - self.lr * self._compute_weight_decays(var))
 		return super(AdamW, self)._resource_apply_sparse(grad, var, indices)
+
+	def get_config(self):
+		base_config = super(AdamW, self).get_config()
+		config = {'decay_var_list': self.decay_var_list}
+		return dict(list(base_config.items()) + list(config.items()))

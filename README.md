@@ -68,7 +68,7 @@ $ python bts_test.py args/test_eigen.txt
 You should see outputs like this:
 ```
 Now testing 652 images.
-81/81 [==============================] - 59s 722ms/step
+81/81 [==============================] - 57s 702ms/step
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
 10.2789,  0.0724,   0.032,   3.158,   0.320,   0.113,   0.937,   0.989,   0.998
 ```

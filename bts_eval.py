@@ -107,9 +107,7 @@ def test(strategy, params):
 		model.load_weights(model_file, by_name=False).expect_partial()
 		print('Checkpoint successfully loaded')
 
-	model_callbacks = [callbacks.TensorBoard(log_dir=tensorboard_log_dir, write_graph=False),
-					   callbacks.ProgbarLogger(count_mode='steps')]
-
+	model_callbacks = [callbacks.ProgbarLogger(count_mode='steps')]
 	model.summary()
 
 	num_test_samples = get_num_lines(args.filenames_file)

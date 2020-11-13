@@ -104,7 +104,7 @@ def bts_model(params, mode, fix_first=False, fix_second=False, pretrained_weight
 				is_training=is_training)
 
 	model = Model(inputs=input_image, outputs=depth_est)
-	return model, compile_weight_decays(encoder_model, params.encoder, l1=0.0, l2=1e-3)
+	return model, compile_weight_decays(encoder_model, params.encoder, l1=0.0, l2=1e-4)
 
 def compile_weight_decays(model, model_name, l1=0.0, l2=0.0):
 	wd_dict = {}

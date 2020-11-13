@@ -49,12 +49,12 @@ You should see outputs like this:
 Now testing 654 images.
 81/81 [==============================] - 44s 546ms/step
   silog, abs_rel,   log10,     rms,  sq_rel, log_rms,      d1,      d2,      d3
-12.7278,  0.1233,   0.052,   0.429,   0.079,   0.157,   0.852,   0.972,   0.993
+12.6411,  0.1205,   0.052,   0.432,   0.076,   0.157,   0.854,   0.972,   0.994
 ```
 Note that the results shown above have been produced by a TPU-trained model with batch size 32 (4 per TPU core). Additional hyperparameter tuning and the addition of currently unsupported rotation augmentation may improve results further.
 
 ### Estimated Evaluation Time on Different Accelerators
-A single RTX 2080 Ti takes about 34 seconds to process 654 testing images. \
+A single RTX 2080 Ti takes about 41 seconds to process 654 testing images. \
 A single TPU pod with 8 cores takes about 44 seconds to process 654 testing images.
 
 ## Testing and Evaluation with [KITTI](http://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)

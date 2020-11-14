@@ -24,13 +24,19 @@ From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimat
 [arXiv](https://arxiv.org/abs/1907.10326)  
 [Supplementary material](https://arxiv.org/src/1907.10326v4/anc/bts_sm.pdf) 
 
-## Demo Depthmap/Photo 1
+## Demo Input Image/Output Depthmap Pairs
+### Outdoor Scenes from KITTI Dataset
 ![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/0000000140.png)
 ![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/2011_09_26_drive_0013_sync_0000000140.png)
-## Demo Depthmap/Photo 2
 ![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/0000000000.png)
 ![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/2011_09_26_drive_0046_sync_0000000000.png)
-
+### Simulated Indoor Scenes (OOD Inputs with Model Trained on NYUv2 Dataset)
+![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor.png)
+![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor.png)
+![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor1.png)
+![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor1.png)
+![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor2.png)
+![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor2.png)
 ## Evaluation with [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 ```shell
 $ cd ~/workspace/bts-fully-tf/
@@ -42,7 +48,7 @@ Once the preparation steps completed, you can evaluate BTS using following comma
 $ cd ~/workspace/bts-fully-tf/
 $ mkdir ./models/; mkdir ./models/bts_nyu/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_nyu/* ./models/bts_nyu/
-$ python bts_test.py args/test_nyu.txt
+$ python bts_eval.py args/test_nyu.txt
 ```
 You should see outputs like this:
 ```
@@ -55,6 +61,7 @@ Note that the results shown above have been produced by a TPU-trained model with
 
 ### Estimated Evaluation Time on Different Accelerators
 A single RTX 2080 Ti takes about 41 seconds to process 654 testing images. \
+A single Tesla T4 takes about 65 seconds to process 654 testing images. \
 A single TPU pod with 8 cores takes about 44 seconds to process 654 testing images.
 
 ## Testing and Evaluation with [KITTI](http://www.cvlibs.net/datasets/kitti/eval_depth.php?benchmark=depth_prediction)
@@ -63,7 +70,7 @@ Once you have KITTI dataset and official ground truth depthmaps, you can test an
 $ cd ~/workspace/bts
 $ mkdir ./models/; mkdir ./models/bts_eigen/
 $ gsutil -m cp -r gs://bts-tf2-model/bts_eigen/* ./models/bts_eigen/
-$ python bts_test.py args/test_eigen.txt
+$ python bts_eval.py args/test_eigen.txt
 ```
 You should see outputs like this:
 ```

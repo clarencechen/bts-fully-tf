@@ -69,7 +69,7 @@ class BtsReader(object):
 
 			if self.params.dataset == 'nyu':
 				# To avoid blank boundaries due to pixel registration
-				image = tf.image.decode_and_crop_jpeg(im_data, channels=3, [45, 43, 427, 565])
+				image = tf.image.decode_and_crop_jpeg(im_data, [45, 43, 427, 565], channels=3)
 				depth_gt = tf.cast(depth_gt[45:472, 43:608, :], tf.float32) / 1000.0
 			else:
 				image = tf.image.decode_png(im_data, channels=3)

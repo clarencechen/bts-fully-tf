@@ -5,8 +5,6 @@
 --data_path dataset/kitti/
 --gt_path dataset/kitti/data_depth_annotated/
 --filenames_file ./train_test_inputs/eigen_test_files_with_gt.txt
---output_directory ./models/
---checkpoint_path ./models/
 --input_height 352
 --input_width 1216
 --max_depth 80

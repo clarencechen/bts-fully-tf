@@ -1,4 +1,5 @@
 --model_name bts_nyu
+--weights_path gs://bts-tf2-model/
 --encoder densenet161_bts
 --dataset nyu
 --tfrecord_path gs://nyu-depth-v2/nyu-depth-v2-eval-compressed.tfrecord

@@ -31,12 +31,8 @@ From Big to Small: Multi-Scale Local Planar Guidance for Monocular Depth Estimat
 ![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/0000000000.png)
 ![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/2011_09_26_drive_0046_sync_0000000000.png)
 ### Simulated Indoor Scenes (OOD Inputs with Model Trained on NYUv2 Dataset)
-![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor.png)
-![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor.png)
 ![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor1.png)
 ![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor1.png)
-![RGB Photo](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/indoor2.png)
-![Depth Map](https://raw.githubusercontent.com/clarencechen/bts-fully-tf/master/demo/default_indoor2.png)
 ## Evaluation with [NYU Depth V2](https://cs.nyu.edu/~silberman/datasets/nyu_depth_v2.html)
 ```shell
 $ cd ~/workspace/bts-fully-tf/

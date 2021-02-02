@@ -137,7 +137,7 @@ def test(params):
 
 			pred_depth = pred_depths[s]
 
-			pred_depth_scaled *= 65536 / args.max_depth
+			pred_depth_scaled = pred_depth * 65536 / args.max_depth
 			pred_depth_scaled = pred_depth_scaled.astype(np.uint16)
 			cv2.imwrite(path_png, pred_depth_scaled, [cv2.IMWRITE_PNG_COMPRESSION, 0])
 

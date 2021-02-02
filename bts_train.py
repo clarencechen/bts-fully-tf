@@ -203,7 +203,7 @@ def main():
 				available_gpus = len(gpus) if gpus else 0
 				raise ValueError('Insufficient resources for distributed training: {} GPUs available out of {} GPUs requested.'.format(available_gpus, args.num_gpus))
 			gpu_name_list = [gpu.name for gpu in gpus]
-			strategy = tf.distribute.MirroredStrategy(devices=gpu_name_list[:num_gpus])
+			strategy = tf.distribute.MirroredStrategy(devices=gpu_name_list[:args.num_gpus])
 		# Default strategy that works on CPU and single GPU
 		else:
 			strategy = tf.distribute.get_strategy()
